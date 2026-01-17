@@ -331,6 +331,7 @@
     "preview": "Preview",
     "diffs": "Diffs",
     "gitActions": "Git Actions",
+    "markAsDone": "Mark as Done",
     "tryAgain": "Try Again",
     "runSetup": "Run Setup",
     "setupHelpText": "{{agent}} isn't setup correctly. Click 'Run Setup' to install it and login.",

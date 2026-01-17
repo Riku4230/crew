@@ -66,6 +66,7 @@
     "createSubtask": "Create Subtask",
     "diffs": "Diffs",
     "gitActions": "Gitアクション",
+    "markAsDone": "完了にする",
     "labels": {
       "agent": "エージェント",
       "attempt": "試行",
