@@ -135,7 +135,16 @@ export function NextActionCard({
 
   // Mark task as done mutation
   const markAsDoneMutation = useMutation({
-    mutationFn: (taskId: string) => tasksApi.update(taskId, { status: 'done' }),
+    mutationFn: (taskId: string) =>
+      tasksApi.update(taskId, {
+        title: null,
+        description: null,
+        status: 'done',
+        parent_workspace_id: null,
+        image_ids: null,
+        dag_position_x: null,
+        dag_position_y: null,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['task', task?.id] });
