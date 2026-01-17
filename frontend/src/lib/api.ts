@@ -1549,3 +1549,172 @@ export const dependenciesApi = {
     return handleApiResponse<void>(response);
   },
 };
+
+// Orchestration API
+export const orchestrationApi = {
+  /** Get orchestrator state and execution plan for a project */
+  getState: async (
+    projectId: string
+  ): Promise<{
+    state: import('shared/types').OrchestratorState;
+    plan: import('shared/types').ExecutionPlan;
+  }> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/orchestrator`
+    );
+    return handleApiResponse<{
+      state: import('shared/types').OrchestratorState;
+      plan: import('shared/types').ExecutionPlan;
+    }>(response);
+  },
+
+  /** Start the orchestrator */
+  start: async (
+    projectId: string
+  ): Promise<{
+    state: import('shared/types').OrchestratorState;
+    plan: import('shared/types').ExecutionPlan;
+  }> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/orchestrator/start`,
+      { method: 'POST' }
+    );
+    return handleApiResponse<{
+      state: import('shared/types').OrchestratorState;
+      plan: import('shared/types').ExecutionPlan;
+    }>(response);
+  },
+
+  /** Pause the orchestrator */
+  pause: async (
+    projectId: string
+  ): Promise<{
+    state: import('shared/types').OrchestratorState;
+    plan: import('shared/types').ExecutionPlan;
+  }> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/orchestrator/pause`,
+      { method: 'POST' }
+    );
+    return handleApiResponse<{
+      state: import('shared/types').OrchestratorState;
+      plan: import('shared/types').ExecutionPlan;
+    }>(response);
+  },
+
+  /** Resume the orchestrator */
+  resume: async (
+    projectId: string
+  ): Promise<{
+    state: import('shared/types').OrchestratorState;
+    plan: import('shared/types').ExecutionPlan;
+  }> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/orchestrator/resume`,
+      { method: 'POST' }
+    );
+    return handleApiResponse<{
+      state: import('shared/types').OrchestratorState;
+      plan: import('shared/types').ExecutionPlan;
+    }>(response);
+  },
+
+  /** Stop the orchestrator */
+  stop: async (
+    projectId: string
+  ): Promise<{
+    state: import('shared/types').OrchestratorState;
+    plan: import('shared/types').ExecutionPlan;
+  }> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/orchestrator/stop`,
+      { method: 'POST' }
+    );
+    return handleApiResponse<{
+      state: import('shared/types').OrchestratorState;
+      plan: import('shared/types').ExecutionPlan;
+    }>(response);
+  },
+
+  /** Get tasks that are ready to execute */
+  getReadyTasks: async (projectId: string): Promise<string[]> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/orchestrator/ready-tasks`
+    );
+    return handleApiResponse<string[]>(response);
+  },
+
+  /** Validate a task transition */
+  validateTransition: async (
+    projectId: string,
+    taskId: string,
+    newStatus: string
+  ): Promise<import('shared/types').TransitionValidation> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/orchestrator/validate-transition`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ task_id: taskId, new_status: newStatus }),
+      }
+    );
+    return handleApiResponse<import('shared/types').TransitionValidation>(
+      response
+    );
+  },
+
+  /** Get WebSocket stream URL for orchestrator events */
+  getStreamUrl: (projectId: string): string =>
+    `/api/projects/${projectId}/orchestrator/stream/ws`,
+
+  /** Notify orchestrator that a task has started */
+  notifyTaskStarted: async (
+    projectId: string,
+    taskId: string
+  ): Promise<void> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/orchestrator/tasks/${taskId}/started`,
+      { method: 'POST' }
+    );
+    return handleApiResponse<void>(response);
+  },
+
+  /** Notify orchestrator that a task has completed */
+  notifyTaskCompleted: async (
+    projectId: string,
+    taskId: string
+  ): Promise<string[]> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/orchestrator/tasks/${taskId}/completed`,
+      { method: 'POST' }
+    );
+    return handleApiResponse<string[]>(response);
+  },
+
+  /** Notify orchestrator that a task has failed */
+  notifyTaskFailed: async (
+    projectId: string,
+    taskId: string,
+    error: string
+  ): Promise<void> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/orchestrator/tasks/${taskId}/failed`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ error }),
+      }
+    );
+    return handleApiResponse<void>(response);
+  },
+
+  /** Notify orchestrator that a task is awaiting review */
+  notifyTaskReview: async (
+    projectId: string,
+    taskId: string
+  ): Promise<void> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/orchestrator/tasks/${taskId}/review`,
+      { method: 'POST' }
+    );
+    return handleApiResponse<void>(response);
+  },
+};

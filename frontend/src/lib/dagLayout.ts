@@ -23,7 +23,7 @@ export function getLayoutedElements<T extends Record<string, unknown>>(
   options: LayoutOptions = {}
 ): Node<T>[] {
   const {
-    direction = 'TB',
+    direction = 'LR',
     nodeSpacing = 50,
     rankSpacing = 100,
   } = options;

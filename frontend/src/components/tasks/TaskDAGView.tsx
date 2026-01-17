@@ -13,6 +13,7 @@ import {
   Panel,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { LayoutGrid } from 'lucide-react';
 
 import type { TaskWithAttemptStatus, TaskDependency } from 'shared/types';
 import { TaskDAGNode, type TaskNodeData } from './TaskDAGNode';
@@ -22,6 +23,7 @@ import {
   createEdgeIdFromDependency,
   getDependencyIdFromEdgeId,
 } from '@/hooks/useTaskDependencies';
+import { getLayoutedElements } from '@/lib/dagLayout';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -176,6 +178,16 @@ export const TaskDAGView = memo(function TaskDAGView({
     setEdges(createEdges(dependencies, handleEdgeDelete));
   }, [dependencies, handleEdgeDelete, setEdges]);
 
+  // Auto layout using dagre
+  const onAutoLayout = useCallback(() => {
+    const layoutedNodes = getLayoutedElements(nodes, edges, {
+      direction: 'TB',
+      nodeSpacing: 50,
+      rankSpacing: 100,
+    });
+    setNodes(layoutedNodes);
+  }, [nodes, edges, setNodes]);
+
   // Handle new connections (creating dependencies)
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -213,6 +225,17 @@ export const TaskDAGView = memo(function TaskDAGView({
           <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
           <Panel position="top-left" className="bg-card/80 backdrop-blur-sm rounded-lg p-2 text-xs text-muted-foreground">
             {t('dag.instructions', 'Drag from bottom handle to top handle to create dependencies')}
+          </Panel>
+          <Panel position="top-right" className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onAutoLayout}
+              className="bg-card/80 backdrop-blur-sm"
+            >
+              <LayoutGrid className="h-4 w-4 mr-2" />
+              {t('dag.autoLayout', '自動整列')}
+            </Button>
           </Panel>
         </ReactFlow>
       </div>

@@ -48,7 +48,10 @@ export const useExecutionProcesses = (
     );
 
   // Memoize derived values to prevent unnecessary re-renders
-  const executionProcessesById = data?.execution_processes ?? {};
+  const executionProcessesById = useMemo(
+    () => data?.execution_processes ?? {},
+    [data?.execution_processes]
+  );
 
   const executionProcesses = useMemo(
     () =>

@@ -1,0 +1,19 @@
+[package]
+name = "orchestrator"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+db = { path = "../db" }
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+uuid = { version = "1.11", features = ["v4", "serde"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true }
+ts-rs = { workspace = true }
+
+[dev-dependencies]
+tokio = { version = "1.42", features = ["rt-multi-thread", "macros"] }
+chrono = { version = "0.4", features = ["serde"] }

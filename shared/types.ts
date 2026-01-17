@@ -274,6 +274,62 @@ export type CreateDependencyRequest = { task_id: string, depends_on_task_id: str
 
 export type UpdatePositionRequest = { position: number, };
 
+export type OrchestratorStateResponse = { state: OrchestratorState, plan: ExecutionPlan, };
+
+export type ValidateTransitionRequest = { task_id: string, new_status: string, };
+
+export type TaskFailedRequest = { error: string, };
+
+export type ExecutionPlan = { 
+/**
+ * All tasks grouped by execution level (tasks in same level can run in parallel)
+ */
+levels: Array<ExecutionLevel>, 
+/**
+ * Total number of tasks in the plan
+ */
+total_tasks: number, 
+/**
+ * Number of tasks already completed
+ */
+completed_tasks: number, 
+/**
+ * Number of tasks currently in progress
+ */
+in_progress_tasks: number, 
+/**
+ * Number of tasks waiting for review
+ */
+in_review_tasks: number, 
+/**
+ * Number of tasks ready to execute
+ */
+ready_tasks: number, 
+/**
+ * Number of tasks blocked by dependencies
+ */
+blocked_tasks: number, };
+
+export type ExecutionLevel = { level: number, tasks: Array<ExecutableTask>, };
+
+export type ExecutableTask = { task_id: string, status: TaskStatus, readiness: TaskReadiness, 
+/**
+ * Tasks that must complete before this task can start
+ */
+dependencies: Array<string>, 
+/**
+ * Tasks that depend on this task
+ */
+dependents: Array<string>, };
+
+export type TaskReadiness = "ready" | { "blocked": { blocking_task_ids: Array<string>, } } | "in_progress" | "completed" | "cancelled";
+
+export type TransitionValidation = { "type": "valid" } | { "type": "invalid", reason: string, } | { "type": "requires_confirmation", reason: string, blocking_tasks: Array<string>, };
+
+export type OrchestratorState = "idle" | "running" | "paused" | "stopping";
+
+export type OrchestratorEvent = { "type": "task_started", "data": { task_id: string, } } | { "type": "task_completed", "data": { task_id: string, } } | { "type": "task_failed", "data": { task_id: string, error: string, } } | { "type": "task_awaiting_review", "data": { task_id: string, } } | { "type": "state_changed", "data": { state: OrchestratorState, } } | { "type": "plan_updated", "data": { plan: ExecutionPlan, } };
+
 export type CreatePrApiRequest = { title: string, body: string | null, target_branch: string | null, draft: boolean | null, repo_id: string, auto_generate_description: boolean, };
 
 export type ImageResponse = { id: string, file_path: string, original_name: string, mime_type: string | null, size_bytes: bigint, hash: string, created_at: string, updated_at: string, };
