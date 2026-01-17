@@ -50,6 +50,8 @@ docs/             ← ドキュメント
 | 「コード書いて」「修正して」「直して」 | `implementer` | `.cursor/agents/implementer.md` |
 | 「コードレビュー」「チェックして」 | `reviewer` | `.cursor/agents/reviewer.md` |
 | 「〜をIssueに」「課題登録して」「タスク追加して」 | `task-organizer` | `.cursor/agents/task-organizer.md` |
+| 「依存関係整理して」「DAG整理して」「タスクの順序決めて」 | スキル直接 | `.claude/skills/organize-dependencies/SKILL.md` |
+| 「タスクに分解して」「仕様からタスク作って」「PRDからIssue切って」 | スキル直接 | `.claude/skills/spec-to-tasks/SKILL.md` |
 
 ### Agent定義ファイルの読み方
 

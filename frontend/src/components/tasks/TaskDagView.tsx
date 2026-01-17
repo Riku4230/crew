@@ -1,19 +1,22 @@
-import { memo, useCallback, useMemo, useState, useEffect } from 'react';
+import { memo, useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import {
   ReactFlow,
+  ReactFlowProvider,
   Controls,
   Background,
   BackgroundVariant,
   useNodesState,
   useEdgesState,
+  useReactFlow,
   type Connection,
   type Node,
   type Edge,
+  type EdgeChange,
   MarkerType,
   Panel,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { LayoutGrid, Play, Pause, Square, Wifi, WifiOff } from 'lucide-react';
+import { LayoutGrid, Play, Pause, Square, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 
 import type { TaskWithAttemptStatus, TaskDependency, TaskReadiness } from 'shared/types';
 import { TaskDAGNode, type TaskNodeData } from './TaskDagNode';
@@ -117,17 +120,23 @@ function createEdges(
   }));
 }
 
-export const TaskDAGView = memo(function TaskDAGView({
+// Inner component that uses useReactFlow (must be inside ReactFlowProvider)
+const TaskDAGViewInner = memo(function TaskDAGViewInner({
   tasks,
   projectId,
   onViewDetails,
 }: TaskDAGViewProps) {
   const { t } = useTranslation('tasks');
+  const { fitView } = useReactFlow();
   const {
     dependencies,
     createDependency,
     deleteDependency,
+    isConnected: wsConnected,
   } = useTaskDependencies(projectId);
+
+  // Track previous dependency count to detect changes
+  const prevDepsCountRef = useRef(dependencies.length);
 
   // Orchestration state and controls - disabled until backend API is ready
   // const {
@@ -149,7 +158,6 @@ export const TaskDAGView = memo(function TaskDAGView({
   const orchestratorState = 'idle' as 'idle' | 'running' | 'paused' | 'stopping';
   const tasksByReadiness = { ready: [] as string[], blocked: [] as string[], inProgress: [] as string[], completed: [] as string[] };
   const getTaskReadiness = undefined;
-  const wsConnected = false;
   const start = () => {};
   const pause = () => {};
   const resume = () => {};
@@ -158,6 +166,9 @@ export const TaskDAGView = memo(function TaskDAGView({
   const isPausing = false;
   const isResuming = false;
   const isStopping = false;
+
+  // State for auto-layout
+  const [autoLayoutEnabled, setAutoLayoutEnabled] = useState(true);
 
   // Calculate progress
   const totalTasks = tasks.length;
@@ -200,7 +211,32 @@ export const TaskDAGView = memo(function TaskDAGView({
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [edges, setEdges, defaultOnEdgesChange] = useEdgesState(initialEdges);
+
+  // Custom edge change handler that calls API for deletions
+  const onEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      // Separate removal changes from other changes
+      const removals = changes.filter((change) => change.type === 'remove');
+      const otherChanges = changes.filter((change) => change.type !== 'remove');
+
+      // Apply non-removal changes normally
+      if (otherChanges.length > 0) {
+        defaultOnEdgesChange(otherChanges);
+      }
+
+      // For removals, call API to delete from database
+      for (const removal of removals) {
+        if (removal.type === 'remove') {
+          const dependencyId = getDependencyIdFromEdgeId(removal.id);
+          if (dependencyId) {
+            deleteDependency.mutate(dependencyId);
+          }
+        }
+      }
+    },
+    [defaultOnEdgesChange, deleteDependency]
+  );
 
   // Sync when dependencies or tasks change
   useEffect(() => {
@@ -213,14 +249,49 @@ export const TaskDAGView = memo(function TaskDAGView({
   }, [dependencies, handleEdgeDelete, setEdges]);
 
   // Auto layout using dagre (Left to Right)
-  const onAutoLayout = useCallback(() => {
-    const layoutedNodes = getLayoutedElements(nodes, edges, {
+  const applyAutoLayout = useCallback((nodesToLayout: Node<TaskNodeData>[], edgesToLayout: Edge[]) => {
+    const layoutedNodes = getLayoutedElements(nodesToLayout, edgesToLayout, {
       direction: 'LR',
       nodeSpacing: 50,
       rankSpacing: 120,
     });
     setNodes(layoutedNodes);
-  }, [nodes, edges, setNodes]);
+    // Fit view after layout with a small delay to ensure nodes are positioned
+    setTimeout(() => {
+      fitView({ padding: 0.2, duration: 300 });
+    }, 50);
+  }, [setNodes, fitView]);
+
+  const onAutoLayout = useCallback(() => {
+    applyAutoLayout(nodes, edges);
+  }, [nodes, edges, applyAutoLayout]);
+
+  // Auto-layout when dependencies change (if enabled)
+  useEffect(() => {
+    const currentDepsCount = dependencies.length;
+    const prevDepsCount = prevDepsCountRef.current;
+
+    // Only auto-layout if dependencies actually changed (not just initial load)
+    if (autoLayoutEnabled && currentDepsCount !== prevDepsCount && prevDepsCount > 0) {
+      // Create fresh nodes and edges for layout
+      const freshNodes = layoutNodes(tasks, onViewDetails, getTaskReadiness);
+      const freshEdges = createEdges(dependencies, handleEdgeDelete);
+      applyAutoLayout(freshNodes, freshEdges);
+    }
+
+    prevDepsCountRef.current = currentDepsCount;
+  }, [dependencies, tasks, onViewDetails, getTaskReadiness, handleEdgeDelete, autoLayoutEnabled, applyAutoLayout]);
+
+  // Initial auto-layout when first loaded with edges
+  useEffect(() => {
+    if (nodes.length > 0 && edges.length > 0 && autoLayoutEnabled) {
+      // Small delay to ensure everything is rendered
+      const timer = setTimeout(() => {
+        applyAutoLayout(nodes, edges);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, []); // Run only once on mount
 
   // Handle new connections (creating dependencies)
   const onConnect = useCallback(
@@ -254,6 +325,7 @@ export const TaskDAGView = memo(function TaskDAGView({
             type: 'dependency',
           }}
           proOptions={{ hideAttribution: true }}
+          edgesReconnectable={false}
         >
           <Controls />
           <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
@@ -261,6 +333,15 @@ export const TaskDAGView = memo(function TaskDAGView({
             {t('dag.instructions', 'Drag from bottom handle to top handle to create dependencies')}
           </Panel>
           <Panel position="top-right" className="flex gap-2">
+            <Button
+              variant={autoLayoutEnabled ? "default" : "outline"}
+              size="sm"
+              onClick={() => setAutoLayoutEnabled(!autoLayoutEnabled)}
+              className={autoLayoutEnabled ? "" : "bg-card/80 backdrop-blur-sm"}
+              title={autoLayoutEnabled ? t('dag.autoLayoutOn', '自動整列ON') : t('dag.autoLayoutOff', '自動整列OFF')}
+            >
+              <RefreshCw className={`h-4 w-4 ${autoLayoutEnabled ? 'animate-spin' : ''}`} style={{ animationDuration: '3s' }} />
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -402,5 +483,14 @@ export const TaskDAGView = memo(function TaskDAGView({
         </DialogContent>
       </Dialog>
     </>
+  );
+});
+
+// Wrapper component with ReactFlowProvider (required for useReactFlow hook)
+export const TaskDAGView = memo(function TaskDAGView(props: TaskDAGViewProps) {
+  return (
+    <ReactFlowProvider>
+      <TaskDAGViewInner {...props} />
+    </ReactFlowProvider>
   );
 });
