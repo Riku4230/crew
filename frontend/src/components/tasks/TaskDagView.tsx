@@ -28,6 +28,7 @@ import {
   createEdgeIdFromDependency,
   getDependencyIdFromEdgeId,
 } from '@/hooks/useTaskDependencies';
+import { useTaskMutations } from '@/hooks/useTaskMutations';
 import { getLayoutedElements } from '@/lib/dagLayout';
 // import { useOrchestration } from '@/hooks/useOrchestration'; // Disabled until backend API is ready
 import { Button } from '@/components/ui/button';
@@ -129,13 +130,14 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
   onViewDetails,
 }: TaskDAGViewProps) {
   const { t } = useTranslation('tasks');
-  const { fitView } = useReactFlow();
+  const { fitView, screenToFlowPosition } = useReactFlow();
   const {
     dependencies,
     createDependency,
     deleteDependency,
     isConnected: wsConnected,
   } = useTaskDependencies(projectId);
+  const { updateTask } = useTaskMutations(projectId);
 
   // Track previous dependency count to detect changes
   const prevDepsCountRef = useRef(dependencies.length);
@@ -179,27 +181,22 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
   const completedTasksCount = tasks.filter(t => t.status === 'done').length;
   const progressPercent = totalTasks > 0 ? (completedTasksCount / totalTasks) * 100 : 0;
 
-  // Calculate isolated tasks (not connected to any dependency)
-  const { connectedTasks, isolatedTasks } = useMemo(() => {
-    const connectedIds = new Set<string>();
-    dependencies.forEach((dep) => {
-      connectedIds.add(dep.task_id);
-      connectedIds.add(dep.depends_on_task_id);
-    });
-
-    const connected: TaskWithAttemptStatus[] = [];
-    const isolated: TaskWithAttemptStatus[] = [];
+  // Classify tasks based on dag_position: tasks with position are in DAG, others in pool
+  const { dagTasks, poolTasks } = useMemo(() => {
+    const inDag: TaskWithAttemptStatus[] = [];
+    const inPool: TaskWithAttemptStatus[] = [];
 
     tasks.forEach((task) => {
-      if (connectedIds.has(task.id)) {
-        connected.push(task);
+      // Task is in DAG if it has a position set
+      if (task.dag_position_x !== null && task.dag_position_y !== null) {
+        inDag.push(task);
       } else {
-        isolated.push(task);
+        inPool.push(task);
       }
     });
 
-    return { connectedTasks: connected, isolatedTasks: isolated };
-  }, [tasks, dependencies]);
+    return { dagTasks: inDag, poolTasks: inPool };
+  }, [tasks]);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [edgeToDelete, setEdgeToDelete] = useState<string | null>(null);
@@ -227,8 +224,8 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
 
   // Create initial nodes and edges (only connected tasks shown in DAG)
   const initialNodes = useMemo(
-    () => layoutNodes(connectedTasks, onViewDetails, getTaskReadiness),
-    [connectedTasks, onViewDetails, getTaskReadiness]
+    () => layoutNodes(dagTasks, onViewDetails, getTaskReadiness),
+    [dagTasks, onViewDetails, getTaskReadiness]
   );
 
   const initialEdges = useMemo(
@@ -266,9 +263,9 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
 
   // Sync when dependencies or connected tasks change
   useEffect(() => {
-    const newNodes = layoutNodes(connectedTasks, onViewDetails, getTaskReadiness);
+    const newNodes = layoutNodes(dagTasks, onViewDetails, getTaskReadiness);
     setNodes(newNodes);
-  }, [connectedTasks, onViewDetails, getTaskReadiness, setNodes]);
+  }, [dagTasks, onViewDetails, getTaskReadiness, setNodes]);
 
   useEffect(() => {
     setEdges(createEdges(dependencies, handleEdgeDelete));
@@ -305,7 +302,7 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
     if (!initialLayoutAppliedRef.current && autoLayoutEnabled && nodesCount > 0 && edgesCount > 0) {
       initialLayoutAppliedRef.current = true;
       const timer = setTimeout(() => {
-        const freshNodes = layoutNodes(connectedTasks, onViewDetails, getTaskReadiness);
+        const freshNodes = layoutNodes(dagTasks, onViewDetails, getTaskReadiness);
         const freshEdges = createEdges(dependencies, handleEdgeDelete);
         applyAutoLayout(freshNodes, freshEdges);
       }, 100);
@@ -315,13 +312,13 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
 
     // Subsequent layouts: only when dependencies actually changed
     if (initialLayoutAppliedRef.current && autoLayoutEnabled && depsCount !== prevDepsCount) {
-      const freshNodes = layoutNodes(connectedTasks, onViewDetails, getTaskReadiness);
+      const freshNodes = layoutNodes(dagTasks, onViewDetails, getTaskReadiness);
       const freshEdges = createEdges(dependencies, handleEdgeDelete);
       applyAutoLayout(freshNodes, freshEdges);
     }
 
     prevDepsCountRef.current = depsCount;
-  }, [depsCount, nodesCount, edgesCount, autoLayoutEnabled, connectedTasks, onViewDetails, getTaskReadiness, dependencies, handleEdgeDelete, applyAutoLayout]);
+  }, [depsCount, nodesCount, edgesCount, autoLayoutEnabled, dagTasks, onViewDetails, getTaskReadiness, dependencies, handleEdgeDelete, applyAutoLayout]);
 
   // Handle new connections (creating dependencies)
   const onConnect = useCallback(
@@ -355,35 +352,43 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
       if (!taskId) return;
 
       // Find the dragged task
-      const draggedTask = isolatedTasks.find(t => t.id === taskId);
+      const draggedTask = poolTasks.find(t => t.id === taskId);
       if (!draggedTask) return;
 
-      // Check if dropped on a node by looking at the target element
+      // Convert screen coordinates to flow coordinates
+      const position = screenToFlowPosition({
+        x: e.clientX,
+        y: e.clientY,
+      });
+
+      // Update the task with the new position to move it to DAG
+      updateTask.mutate({
+        taskId: taskId,
+        data: {
+          title: null,
+          description: null,
+          status: null,
+          parent_workspace_id: null,
+          image_ids: null,
+          dag_position_x: position.x,
+          dag_position_y: position.y,
+        },
+      });
+
+      // Optionally create a dependency if dropped on an existing node
       const targetElement = document.elementFromPoint(e.clientX, e.clientY);
       const nodeElement = targetElement?.closest('[data-id]');
       const targetNodeId = nodeElement?.getAttribute('data-id');
 
       if (targetNodeId && targetNodeId !== taskId) {
-        // Dropped on an existing node - create dependency
-        // The dragged task depends on the target node
+        // Dropped on an existing node - also create dependency
         createDependency.mutate({
           task_id: taskId,
           depends_on_task_id: targetNodeId,
         });
-      } else if (connectedTasks.length > 0) {
-        // Dropped on empty space in DAG area - create dependency with first connected task
-        // This adds the task to the DAG as a dependent of the first task
-        createDependency.mutate({
-          task_id: taskId,
-          depends_on_task_id: connectedTasks[0].id,
-        });
-      } else {
-        // No connected tasks yet - we need at least 2 isolated tasks to create a dependency
-        // For now, just alert the user or handle this case
-        console.log('DAGにタスクがありません。2つ以上のタスクをドロップしてから依存関係を作成してください。');
       }
     },
-    [createDependency, connectedTasks, isolatedTasks]
+    [createDependency, poolTasks, screenToFlowPosition, updateTask]
   );
 
   return (
@@ -391,7 +396,7 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
       <div className="flex w-full h-full min-h-[500px]">
         {/* Sidebar with isolated tasks */}
       <TaskDagSidebar
-        isolatedTasks={isolatedTasks}
+        poolTasks={poolTasks}
         onViewDetails={onViewDetails}
       />
 

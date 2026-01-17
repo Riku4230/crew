@@ -91,25 +91,25 @@ const TaskCard = memo(function TaskCard({
 });
 
 export interface TaskDagSidebarProps {
-  /** Tasks not connected to any dependency (isolated nodes) */
-  isolatedTasks: TaskWithAttemptStatus[];
+  /** Tasks in the pool (not placed in DAG yet) */
+  poolTasks: TaskWithAttemptStatus[];
   onViewDetails: (task: TaskWithAttemptStatus) => void;
 }
 
 export const TaskDagSidebar = memo(function TaskDagSidebar({
-  isolatedTasks,
+  poolTasks,
   onViewDetails,
 }: TaskDagSidebarProps) {
   // Sort: Todo first, then Done
-  const sortedTasks = [...isolatedTasks].sort((a, b) => {
+  const sortedTasks = [...poolTasks].sort((a, b) => {
     if (a.status === 'done' && b.status !== 'done') return 1;
     if (a.status !== 'done' && b.status === 'done') return -1;
     // Within same status, sort by created_at (newest first)
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
 
-  const todoCount = isolatedTasks.filter(t => t.status !== 'done').length;
-  const doneCount = isolatedTasks.filter(t => t.status === 'done').length;
+  const todoCount = poolTasks.filter(t => t.status !== 'done').length;
+  const doneCount = poolTasks.filter(t => t.status === 'done').length;
 
   return (
     <div className="w-72 h-full bg-muted/30 border-r border-border flex flex-col shrink-0">
@@ -117,7 +117,7 @@ export const TaskDagSidebar = memo(function TaskDagSidebar({
       <div className="p-4 border-b border-border bg-card">
         <h3 className="text-sm font-semibold text-foreground">タスクプール</h3>
         <p className="text-xs text-muted-foreground mt-1">
-          DAGに接続されていないタスク
+          DAGに配置されていないタスク
         </p>
         <div className="flex gap-4 mt-3 text-xs">
           <span className="flex items-center gap-1.5">
@@ -142,13 +142,13 @@ export const TaskDagSidebar = memo(function TaskDagSidebar({
         ))}
 
         {/* Empty state */}
-        {isolatedTasks.length === 0 && (
+        {poolTasks.length === 0 && (
           <div className="text-center py-12 px-4">
             <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
               <CheckCircle2 className="h-6 w-6 text-emerald-500" />
             </div>
             <p className="text-sm text-muted-foreground">
-              すべてのタスクがDAGに接続されています
+              すべてのタスクがDAGに配置されています
             </p>
           </div>
         )}
