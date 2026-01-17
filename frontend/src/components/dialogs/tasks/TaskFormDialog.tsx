@@ -157,7 +157,7 @@ const TaskFormDialogImpl = NiceModal.create<TaskFormDialogProps>((props) => {
           status: 'todo',
           executorProfileId: baseProfile,
           repoBranches: defaultRepoBranches,
-          autoStart: true,
+          autoStart: false,
         };
     }
   }, [mode, props, system.config?.executor_profile, defaultRepoBranches]);

@@ -104,6 +104,15 @@ function TaskTableViewComponent({
   return (
     <div className="w-full h-full overflow-auto px-4 sm:px-6 py-6">
       <div className="max-w-7xl mx-auto">
+        {/* Header with Add Task button */}
+        {onCreateTask && (
+          <div className="flex justify-end mb-4">
+            <Button onClick={onCreateTask} size="sm">
+              <Plus className="h-4 w-4 mr-1" />
+              {t('dag.addTask', 'タスク追加')}
+            </Button>
+          </div>
+        )}
         <div className="rounded-2xl overflow-hidden bg-white dark:bg-slate-800/60 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.08)] dark:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4)]">
           <Table className="min-w-[700px]">
             <TableHead>

@@ -16,7 +16,10 @@ import {
   Panel,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { LayoutGrid, Play, Pause, Square, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { DndContext, useSensor, useSensors, PointerSensor, type DragEndEvent } from '@dnd-kit/core';
+import { LayoutGrid, Play, Pause, Square, Wifi, WifiOff, RefreshCw, Plus } from 'lucide-react';
+import { TaskFormDialog } from '@/components/dialogs/tasks/TaskFormDialog';
+import { TaskDagSidebar, SIDEBAR_TASK_TYPE } from './TaskDagSidebar';
 
 import type { TaskWithAttemptStatus, TaskDependency, TaskReadiness } from 'shared/types';
 import { TaskDAGNode, type TaskNodeData } from './TaskDagNode';
@@ -137,6 +140,8 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
 
   // Track previous dependency count to detect changes
   const prevDepsCountRef = useRef(dependencies.length);
+  // Track if initial layout has been applied
+  const initialLayoutAppliedRef = useRef(false);
 
   // Orchestration state and controls - disabled until backend API is ready
   // const {
@@ -172,8 +177,30 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
 
   // Calculate progress
   const totalTasks = tasks.length;
-  const completedTasks = tasks.filter(t => t.status === 'done').length;
-  const progressPercent = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+  const completedTasksCount = tasks.filter(t => t.status === 'done').length;
+  const progressPercent = totalTasks > 0 ? (completedTasksCount / totalTasks) * 100 : 0;
+
+  // Calculate isolated tasks (not connected to any dependency)
+  const { connectedTasks, isolatedTasks } = useMemo(() => {
+    const connectedIds = new Set<string>();
+    dependencies.forEach((dep) => {
+      connectedIds.add(dep.task_id);
+      connectedIds.add(dep.depends_on_task_id);
+    });
+
+    const connected: TaskWithAttemptStatus[] = [];
+    const isolated: TaskWithAttemptStatus[] = [];
+
+    tasks.forEach((task) => {
+      if (connectedIds.has(task.id)) {
+        connected.push(task);
+      } else {
+        isolated.push(task);
+      }
+    });
+
+    return { connectedTasks: connected, isolatedTasks: isolated };
+  }, [tasks, dependencies]);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [edgeToDelete, setEdgeToDelete] = useState<string | null>(null);
@@ -199,10 +226,10 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
     setEdgeToDelete(null);
   }, []);
 
-  // Create initial nodes and edges
+  // Create initial nodes and edges (only connected tasks shown in DAG)
   const initialNodes = useMemo(
-    () => layoutNodes(tasks, onViewDetails, getTaskReadiness),
-    [tasks, onViewDetails, getTaskReadiness]
+    () => layoutNodes(connectedTasks, onViewDetails, getTaskReadiness),
+    [connectedTasks, onViewDetails, getTaskReadiness]
   );
 
   const initialEdges = useMemo(
@@ -238,11 +265,11 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
     [defaultOnEdgesChange, deleteDependency]
   );
 
-  // Sync when dependencies or tasks change
+  // Sync when dependencies or connected tasks change
   useEffect(() => {
-    const newNodes = layoutNodes(tasks, onViewDetails, getTaskReadiness);
+    const newNodes = layoutNodes(connectedTasks, onViewDetails, getTaskReadiness);
     setNodes(newNodes);
-  }, [tasks, onViewDetails, getTaskReadiness, setNodes]);
+  }, [connectedTasks, onViewDetails, getTaskReadiness, setNodes]);
 
   useEffect(() => {
     setEdges(createEdges(dependencies, handleEdgeDelete));
@@ -266,32 +293,36 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
     applyAutoLayout(nodes, edges);
   }, [nodes, edges, applyAutoLayout]);
 
+  // Stable count values to avoid infinite loops from array reference changes
+  const depsCount = dependencies.length;
+  const nodesCount = nodes.length;
+  const edgesCount = edges.length;
+
   // Auto-layout when dependencies change (if enabled)
   useEffect(() => {
-    const currentDepsCount = dependencies.length;
     const prevDepsCount = prevDepsCountRef.current;
 
-    // Only auto-layout if dependencies actually changed (not just initial load)
-    if (autoLayoutEnabled && currentDepsCount !== prevDepsCount && prevDepsCount > 0) {
-      // Create fresh nodes and edges for layout
-      const freshNodes = layoutNodes(tasks, onViewDetails, getTaskReadiness);
+    // Initial layout: apply once when we first have both nodes and edges
+    if (!initialLayoutAppliedRef.current && autoLayoutEnabled && nodesCount > 0 && edgesCount > 0) {
+      initialLayoutAppliedRef.current = true;
+      const timer = setTimeout(() => {
+        const freshNodes = layoutNodes(connectedTasks, onViewDetails, getTaskReadiness);
+        const freshEdges = createEdges(dependencies, handleEdgeDelete);
+        applyAutoLayout(freshNodes, freshEdges);
+      }, 100);
+      prevDepsCountRef.current = depsCount;
+      return () => clearTimeout(timer);
+    }
+
+    // Subsequent layouts: only when dependencies actually changed
+    if (initialLayoutAppliedRef.current && autoLayoutEnabled && depsCount !== prevDepsCount) {
+      const freshNodes = layoutNodes(connectedTasks, onViewDetails, getTaskReadiness);
       const freshEdges = createEdges(dependencies, handleEdgeDelete);
       applyAutoLayout(freshNodes, freshEdges);
     }
 
-    prevDepsCountRef.current = currentDepsCount;
-  }, [dependencies, tasks, onViewDetails, getTaskReadiness, handleEdgeDelete, autoLayoutEnabled, applyAutoLayout]);
-
-  // Initial auto-layout when first loaded with edges
-  useEffect(() => {
-    if (nodes.length > 0 && edges.length > 0 && autoLayoutEnabled) {
-      // Small delay to ensure everything is rendered
-      const timer = setTimeout(() => {
-        applyAutoLayout(nodes, edges);
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, []); // Run only once on mount
+    prevDepsCountRef.current = depsCount;
+  }, [depsCount, nodesCount, edgesCount, autoLayoutEnabled, connectedTasks, onViewDetails, getTaskReadiness, dependencies, handleEdgeDelete, applyAutoLayout]);
 
   // Handle new connections (creating dependencies)
   const onConnect = useCallback(
@@ -308,10 +339,59 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
     [createDependency]
   );
 
+  // DnD sensors for sidebar drag
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+
+  // Handle drag end from sidebar
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+
+      // Check if we dragged from sidebar
+      if (active.data.current?.type === SIDEBAR_TASK_TYPE) {
+        const draggedTask = active.data.current.task as TaskWithAttemptStatus;
+
+        // If dropped on a DAG node, create a dependency
+        if (over && typeof over.id === 'string' && !over.id.startsWith('sidebar-')) {
+          // The dragged task depends on the target node
+          createDependency.mutate({
+            task_id: draggedTask.id,
+            depends_on_task_id: over.id,
+          });
+        } else if (!over) {
+          // Dropped on empty space in DAG area - add as independent node
+          // Create a self-reference to add to DAG (will be removed when actual dependency is created)
+          // For now, just create a dummy dependency to the first available task
+          if (connectedTasks.length > 0) {
+            createDependency.mutate({
+              task_id: draggedTask.id,
+              depends_on_task_id: connectedTasks[0].id,
+            });
+          }
+        }
+      }
+    },
+    [createDependency, connectedTasks]
+  );
+
   return (
-    <>
-      <div className="w-full h-full min-h-[500px]">
-        <ReactFlow
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <div className="flex w-full h-full min-h-[500px]">
+        {/* Sidebar with isolated tasks */}
+        <TaskDagSidebar
+          isolatedTasks={isolatedTasks}
+          onViewDetails={onViewDetails}
+        />
+
+        {/* Main DAG area */}
+        <div className="flex-1 h-full">
+          <ReactFlow
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
@@ -333,6 +413,15 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
             {t('dag.instructions', 'Drag from bottom handle to top handle to create dependencies')}
           </Panel>
           <Panel position="top-right" className="flex gap-2">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => TaskFormDialog.show({ mode: 'create', projectId })}
+              className="bg-primary text-primary-foreground"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              {t('dag.addTask', 'タスク追加')}
+            </Button>
             <Button
               variant={autoLayoutEnabled ? "default" : "outline"}
               size="sm"
@@ -385,7 +474,7 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
               <div className="space-y-1">
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>{t('dag.orchestrator.progress', '進捗')}</span>
-                  <span>{completedTasks}/{totalTasks} ({Math.round(progressPercent)}%)</span>
+                  <span>{completedTasksCount}/{totalTasks} ({Math.round(progressPercent)}%)</span>
                 </div>
                 <Progress value={progressPercent} className="h-2" />
               </div>
@@ -453,7 +542,8 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
               </div>
             </div>
           </Panel>
-        </ReactFlow>
+          </ReactFlow>
+        </div>
       </div>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -482,7 +572,7 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </DndContext>
   );
 });
 
