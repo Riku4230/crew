@@ -354,6 +354,10 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
       const taskId = e.dataTransfer.getData(SIDEBAR_TASK_DRAG_TYPE);
       if (!taskId) return;
 
+      // Find the dragged task
+      const draggedTask = isolatedTasks.find(t => t.id === taskId);
+      if (!draggedTask) return;
+
       // Check if dropped on a node by looking at the target element
       const targetElement = document.elementFromPoint(e.clientX, e.clientY);
       const nodeElement = targetElement?.closest('[data-id]');
@@ -361,20 +365,25 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
 
       if (targetNodeId && targetNodeId !== taskId) {
         // Dropped on an existing node - create dependency
+        // The dragged task depends on the target node
         createDependency.mutate({
           task_id: taskId,
           depends_on_task_id: targetNodeId,
         });
       } else if (connectedTasks.length > 0) {
-        // Dropped on empty space - create dependency with first connected task
-        // This adds the task to the DAG
+        // Dropped on empty space in DAG area - create dependency with first connected task
+        // This adds the task to the DAG as a dependent of the first task
         createDependency.mutate({
           task_id: taskId,
           depends_on_task_id: connectedTasks[0].id,
         });
+      } else {
+        // No connected tasks yet - we need at least 2 isolated tasks to create a dependency
+        // For now, just alert the user or handle this case
+        console.log('DAGにタスクがありません。2つ以上のタスクをドロップしてから依存関係を作成してください。');
       }
     },
-    [createDependency, connectedTasks]
+    [createDependency, connectedTasks, isolatedTasks]
   );
 
   return (
@@ -387,17 +396,15 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
       />
 
       {/* Main DAG area */}
-      <div
-        className="flex-1 h-full"
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
-      >
+      <div className="flex-1 h-full">
         <ReactFlow
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView
