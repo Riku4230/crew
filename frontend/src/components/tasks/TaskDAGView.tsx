@@ -24,7 +24,7 @@ import {
   getDependencyIdFromEdgeId,
 } from '@/hooks/useTaskDependencies';
 import { getLayoutedElements } from '@/lib/dagLayout';
-import { useOrchestration } from '@/hooks/useOrchestration';
+// import { useOrchestration } from '@/hooks/useOrchestration'; // Disabled until backend API is ready
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -129,25 +129,39 @@ export const TaskDAGView = memo(function TaskDAGView({
     deleteDependency,
   } = useTaskDependencies(projectId);
 
-  // Orchestration state and controls
-  const {
-    orchestratorState,
-    tasksByReadiness,
-    getTaskReadiness,
-    wsConnected,
-    start,
-    pause,
-    resume,
-    stop,
-    isStarting,
-    isPausing,
-    isResuming,
-    isStopping,
-  } = useOrchestration({ projectId });
+  // Orchestration state and controls - disabled until backend API is ready
+  // const {
+  //   orchestratorState,
+  //   tasksByReadiness,
+  //   getTaskReadiness,
+  //   wsConnected,
+  //   start,
+  //   pause,
+  //   resume,
+  //   stop,
+  //   isStarting,
+  //   isPausing,
+  //   isResuming,
+  //   isStopping,
+  // } = useOrchestration({ projectId });
+
+  // Temporary placeholders until orchestration backend is ready
+  const orchestratorState = 'idle' as 'idle' | 'running' | 'paused' | 'stopping';
+  const tasksByReadiness = { ready: [] as string[], blocked: [] as string[], inProgress: [] as string[], completed: [] as string[] };
+  const getTaskReadiness = undefined;
+  const wsConnected = false;
+  const start = () => {};
+  const pause = () => {};
+  const resume = () => {};
+  const stop = () => {};
+  const isStarting = false;
+  const isPausing = false;
+  const isResuming = false;
+  const isStopping = false;
 
   // Calculate progress
   const totalTasks = tasks.length;
-  const completedTasks = tasksByReadiness.completed.length;
+  const completedTasks = tasks.filter(t => t.status === 'done').length;
   const progressPercent = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
