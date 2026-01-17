@@ -16,10 +16,9 @@ import {
   Panel,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { DndContext, useSensor, useSensors, PointerSensor, type DragEndEvent } from '@dnd-kit/core';
 import { LayoutGrid, Play, Pause, Square, Wifi, WifiOff, RefreshCw, Plus } from 'lucide-react';
 import { TaskFormDialog } from '@/components/dialogs/tasks/TaskFormDialog';
-import { TaskDagSidebar, SIDEBAR_TASK_TYPE } from './TaskDagSidebar';
+import { TaskDagSidebar, SIDEBAR_TASK_DRAG_TYPE } from './TaskDagSidebar';
 
 import type { TaskWithAttemptStatus, TaskDependency, TaskReadiness } from 'shared/types';
 import { TaskDAGNode, type TaskNodeData } from './TaskDagNode';
@@ -339,59 +338,61 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
     [createDependency]
   );
 
-  // DnD sensors for sidebar drag
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    })
-  );
+  // Handle drag over for native HTML5 drop
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    // Check if the dragged item is from sidebar
+    if (e.dataTransfer.types.includes(SIDEBAR_TASK_DRAG_TYPE)) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    }
+  }, []);
 
-  // Handle drag end from sidebar
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event;
+  // Handle drop from sidebar (native HTML5)
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      const taskId = e.dataTransfer.getData(SIDEBAR_TASK_DRAG_TYPE);
+      if (!taskId) return;
 
-      // Check if we dragged from sidebar
-      if (active.data.current?.type === SIDEBAR_TASK_TYPE) {
-        const draggedTask = active.data.current.task as TaskWithAttemptStatus;
+      // Check if dropped on a node by looking at the target element
+      const targetElement = document.elementFromPoint(e.clientX, e.clientY);
+      const nodeElement = targetElement?.closest('[data-id]');
+      const targetNodeId = nodeElement?.getAttribute('data-id');
 
-        // If dropped on a DAG node, create a dependency
-        if (over && typeof over.id === 'string' && !over.id.startsWith('sidebar-')) {
-          // The dragged task depends on the target node
-          createDependency.mutate({
-            task_id: draggedTask.id,
-            depends_on_task_id: over.id,
-          });
-        } else if (!over) {
-          // Dropped on empty space in DAG area - add as independent node
-          // Create a self-reference to add to DAG (will be removed when actual dependency is created)
-          // For now, just create a dummy dependency to the first available task
-          if (connectedTasks.length > 0) {
-            createDependency.mutate({
-              task_id: draggedTask.id,
-              depends_on_task_id: connectedTasks[0].id,
-            });
-          }
-        }
+      if (targetNodeId && targetNodeId !== taskId) {
+        // Dropped on an existing node - create dependency
+        createDependency.mutate({
+          task_id: taskId,
+          depends_on_task_id: targetNodeId,
+        });
+      } else if (connectedTasks.length > 0) {
+        // Dropped on empty space - create dependency with first connected task
+        // This adds the task to the DAG
+        createDependency.mutate({
+          task_id: taskId,
+          depends_on_task_id: connectedTasks[0].id,
+        });
       }
     },
     [createDependency, connectedTasks]
   );
 
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    <>
       <div className="flex w-full h-full min-h-[500px]">
         {/* Sidebar with isolated tasks */}
-        <TaskDagSidebar
-          isolatedTasks={isolatedTasks}
-          onViewDetails={onViewDetails}
-        />
+      <TaskDagSidebar
+        isolatedTasks={isolatedTasks}
+        onViewDetails={onViewDetails}
+      />
 
-        {/* Main DAG area */}
-        <div className="flex-1 h-full">
-          <ReactFlow
+      {/* Main DAG area */}
+      <div
+        className="flex-1 h-full"
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
+        <ReactFlow
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
@@ -572,7 +573,7 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </DndContext>
+    </>
   );
 });
 

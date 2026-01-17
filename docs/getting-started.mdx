@@ -1,12 +1,12 @@
 ---
-title: "Install & Run Vibe Kanban"
-description: "Complete installation guide for Vibe Kanban on macOS, Linux, and Windows"
+title: "Install & Run Crew"
+description: "Complete installation guide for Crew on macOS, Linux, and Windows"
 sidebarTitle: "Installation"
 ---
 
 ## Supported Systems
 
-We build and test Vibe Kanban on the following systems:
+We build and test Crew on the following systems:
 
 - macOS (Intel and Apple Silicon)
 - Linux
@@ -14,15 +14,15 @@ We build and test Vibe Kanban on the following systems:
 
 ## Prerequisites
 
-Before installing Vibe Kanban, ensure you have:
+Before installing Crew, ensure you have:
 
 - **Node.js**: Latest LTS version recommended
-- **Coding agent authentication**: Authenticate with your preferred coding agents outside of Vibe Kanban
+- **Coding agent authentication**: Authenticate with your preferred coding agents outside of Crew
 
 ## Safety Notice
 
 <Warning>
-Vibe Kanban runs AI agents with --dangerously-skip-permissions/--yolo flags by default so they can work autonomously without constant approval prompts. Each task runs in an isolated git worktree, preventing agents from interfering with each other.
+Crew runs AI agents with --dangerously-skip-permissions/--yolo flags by default so they can work autonomously without constant approval prompts. Each task runs in an isolated git worktree, preventing agents from interfering with each other.
 Agents can still perform system-level actions, so review their work and keep backups.
 </Warning>
 
@@ -30,14 +30,14 @@ Agents can still perform system-level actions, so review their work and keep bac
 
 <Steps>
 <Step title="Authenticate with a coding agent">
-  Before launching Vibe Kanban, ensure you're authenticated with at least one [supported coding agent](/supported-coding-agents). Follow the installation and authentication instructions for your preferred agent.
+  Before launching Crew, ensure you're authenticated with at least one [supported coding agent](/supported-coding-agents). Follow the installation and authentication instructions for your preferred agent.
 </Step>
 
-<Step title="Install and launch Vibe Kanban">
+<Step title="Install and launch Crew">
   Open a terminal and run:
 
   ```bash
-  npx vibe-kanban
+  npx crew
   ```
 
   <Check>
@@ -58,7 +58,7 @@ Agents can still perform system-level actions, so review their work and keep bac
 </Step>
 
 <Step title="Optional: GitHub integration">
-  Vibe Kanban uses the [GitHub CLI](https://cli.github.com/) for creating pull requests. Ensure `gh` is installed and authenticated on your system, or follow the setup prompts when creating your first pull request.
+  Crew uses the [GitHub CLI](https://cli.github.com/) for creating pull requests. Ensure `gh` is installed and authenticated on your system, or follow the setup prompts when creating your first pull request.
 </Step>
 
 <Step title="Optional: Set up MCP integration">
@@ -67,5 +67,5 @@ Agents can still perform system-level actions, so review their work and keep bac
 </Steps>
 
 <Tip>
-To use a fixed port, specify the `PORT` environment variable: `PORT=8080 npx vibe-kanban`
+To use a fixed port, specify the `PORT` environment variable: `PORT=8080 npx crew`
 </Tip>

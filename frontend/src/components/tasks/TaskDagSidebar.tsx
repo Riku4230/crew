@@ -1,81 +1,91 @@
-import { memo } from 'react';
-import { useDraggable } from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
+import { memo, type DragEvent } from 'react';
 import {
   Circle,
   CheckCircle2,
-  GripVertical,
+  MoreHorizontal,
 } from 'lucide-react';
 import type { TaskWithAttemptStatus } from 'shared/types';
 import { cn } from '@/lib/utils';
 
-// Drag item type identifier
-export const SIDEBAR_TASK_TYPE = 'sidebar-task';
+// Drag data type for native HTML5 drag
+export const SIDEBAR_TASK_DRAG_TYPE = 'application/x-sidebar-task';
 
-interface DraggableTaskItemProps {
+interface TaskCardProps {
   task: TaskWithAttemptStatus;
   onViewDetails: (task: TaskWithAttemptStatus) => void;
 }
 
-const DraggableTaskItem = memo(function DraggableTaskItem({
+const TaskCard = memo(function TaskCard({
   task,
   onViewDetails,
-}: DraggableTaskItemProps) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: `sidebar-${task.id}`,
-    data: {
-      type: SIDEBAR_TASK_TYPE,
-      task,
-    },
-  });
-
-  const style = transform
-    ? {
-        transform: CSS.Translate.toString(transform),
-        zIndex: isDragging ? 1000 : undefined,
-      }
-    : undefined;
-
+}: TaskCardProps) {
   const isDone = task.status === 'done';
+
+  const handleDragStart = (e: DragEvent<HTMLDivElement>) => {
+    e.dataTransfer.setData(SIDEBAR_TASK_DRAG_TYPE, task.id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  // Truncate description for preview
+  const descriptionPreview = task.description
+    ? task.description.length > 120
+      ? task.description.substring(0, 120) + '...'
+      : task.description
+    : null;
 
   return (
     <div
-      ref={setNodeRef}
-      style={style}
+      draggable
+      onDragStart={handleDragStart}
       className={cn(
-        'group flex items-center gap-2 p-2.5 rounded-lg border-2 cursor-pointer transition-all',
+        'group rounded-xl border bg-card shadow-sm cursor-grab active:cursor-grabbing transition-all',
         isDone
-          ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700'
-          : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700',
-        isDragging && 'opacity-50 shadow-lg scale-95',
-        'hover:shadow-md hover:scale-[1.02]'
+          ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-900/20'
+          : 'border-border hover:border-primary/30 hover:shadow-md',
+        'hover:scale-[1.01]'
       )}
       onClick={() => onViewDetails(task)}
     >
-      {/* Drag handle */}
-      <div
-        {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing p-0.5 -ml-1 opacity-40 group-hover:opacity-100 transition-opacity touch-none"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <GripVertical className="h-4 w-4 text-muted-foreground" />
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2 p-3 pb-2">
+        <div className="flex items-center gap-2 min-w-0">
+          {/* Status icon */}
+          {isDone ? (
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+          ) : (
+            <Circle className="h-4 w-4 shrink-0 text-slate-400" />
+          )}
+          {/* Title */}
+          <span className={cn(
+            'font-medium text-sm leading-tight',
+            isDone && 'text-muted-foreground line-through'
+          )}>
+            {task.title}
+          </span>
+        </div>
+        {/* Menu button */}
+        <button
+          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-muted rounded transition-opacity"
+          onClick={(e) => {
+            e.stopPropagation();
+            onViewDetails(task);
+          }}
+        >
+          <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+        </button>
       </div>
 
-      {/* Status icon */}
-      {isDone ? (
-        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
-      ) : (
-        <Circle className="h-4 w-4 shrink-0 text-slate-400" />
+      {/* Description preview */}
+      {descriptionPreview && (
+        <div className="px-3 pb-3">
+          <p className={cn(
+            'text-xs text-muted-foreground leading-relaxed',
+            isDone && 'line-through'
+          )}>
+            {descriptionPreview}
+          </p>
+        </div>
       )}
-
-      {/* Title */}
-      <span className={cn(
-        'text-sm truncate flex-1',
-        isDone && 'text-muted-foreground line-through'
-      )}>
-        {task.title}
-      </span>
     </div>
   );
 });
@@ -102,29 +112,29 @@ export const TaskDagSidebar = memo(function TaskDagSidebar({
   const doneCount = isolatedTasks.filter(t => t.status === 'done').length;
 
   return (
-    <div className="w-56 h-full bg-card/50 border-r border-border flex flex-col shrink-0">
+    <div className="w-72 h-full bg-muted/30 border-r border-border flex flex-col shrink-0">
       {/* Header */}
-      <div className="p-3 border-b border-border bg-card">
+      <div className="p-4 border-b border-border bg-card">
         <h3 className="text-sm font-semibold text-foreground">タスクプール</h3>
         <p className="text-xs text-muted-foreground mt-1">
           DAGに接続されていないタスク
         </p>
-        <div className="flex gap-3 mt-2 text-xs">
-          <span className="flex items-center gap-1">
-            <Circle className="h-3 w-3 text-slate-400" />
-            <span className="text-muted-foreground">{todoCount}</span>
+        <div className="flex gap-4 mt-3 text-xs">
+          <span className="flex items-center gap-1.5">
+            <Circle className="h-3.5 w-3.5 text-slate-400" />
+            <span className="text-muted-foreground font-medium">{todoCount} 未着手</span>
           </span>
-          <span className="flex items-center gap-1">
-            <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-            <span className="text-muted-foreground">{doneCount}</span>
+          <span className="flex items-center gap-1.5">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+            <span className="text-muted-foreground font-medium">{doneCount} 完了</span>
           </span>
         </div>
       </div>
 
       {/* Scrollable task list */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {sortedTasks.map((task) => (
-          <DraggableTaskItem
+          <TaskCard
             key={task.id}
             task={task}
             onViewDetails={onViewDetails}
@@ -133,8 +143,11 @@ export const TaskDagSidebar = memo(function TaskDagSidebar({
 
         {/* Empty state */}
         {isolatedTasks.length === 0 && (
-          <div className="text-center py-8 px-2">
-            <p className="text-muted-foreground text-sm">
+          <div className="text-center py-12 px-4">
+            <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+              <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+            </div>
+            <p className="text-sm text-muted-foreground">
               すべてのタスクがDAGに接続されています
             </p>
           </div>
@@ -142,9 +155,9 @@ export const TaskDagSidebar = memo(function TaskDagSidebar({
       </div>
 
       {/* Footer hint */}
-      <div className="p-2 border-t border-border bg-muted/30">
-        <p className="text-[10px] text-muted-foreground text-center">
-          ドラッグしてDAGに追加
+      <div className="p-3 border-t border-border bg-card/50">
+        <p className="text-xs text-muted-foreground text-center">
+          カードをドラッグしてDAGにドロップ
         </p>
       </div>
     </div>

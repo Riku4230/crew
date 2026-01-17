@@ -1,8 +1,8 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Vibe Kanban",
-  "description": "A kanban board for developers to track coding tasks with AI coding agents",
+  "name": "Crew",
+  "description": "AI-powered task management for everyone - Engineers, PMs, and Business teams working together with AI agents",
   "appearance": {
     "default": "light"
   },
