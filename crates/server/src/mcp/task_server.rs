@@ -195,6 +195,9 @@ pub struct UpdateTaskRequest {
     pub description: Option<String>,
     #[schemars(description = "New status: 'todo', 'inprogress', 'inreview', 'done', 'cancelled'")]
     pub status: Option<String>,
+    #[schemars(description = "Set to true to clear DAG position and move task back to pool")]
+    #[serde(default)]
+    pub clear_dag_position: bool,
 }
 
 #[derive(Debug, Serialize, schemars::JsonSchema)]
@@ -827,6 +830,7 @@ impl TaskServer {
             title,
             description,
             status,
+            clear_dag_position,
         }): Parameters<UpdateTaskRequest>,
     ) -> Result<CallToolResult, ErrorData> {
         let status = if let Some(ref status_str) = status {
@@ -857,7 +861,7 @@ impl TaskServer {
             image_ids: None,
             dag_position_x: None,
             dag_position_y: None,
-            clear_dag_position: false,
+            clear_dag_position,
         };
         let url = self.url(&format!("/api/tasks/{}", task_id));
         let updated_task: Task = match self.send_json(self.client.put(&url).json(&payload)).await {

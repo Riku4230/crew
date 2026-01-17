@@ -167,6 +167,9 @@ pub async fn create_dependency(
 
     let dependency = TaskDependency::create(pool, &create_data).await?;
 
+    // 依存関係作成後、プロジェクト全体のDAGレイアウトを再計算
+    recalculate_dag_layout(pool, project.id).await?;
+
     tracing::info!(
         "Created dependency: task {} depends on task {}",
         payload.task_id,
@@ -237,6 +240,135 @@ pub async fn update_task_position(
     );
 
     Ok(ResponseJson(ApiResponse::success(updated_task)))
+}
+
+/// Recalculate DAG layout for all tasks with dependencies in a project
+/// Uses topological sort to arrange tasks in a clean hierarchical layout
+async fn recalculate_dag_layout(
+    pool: &sqlx::SqlitePool,
+    project_id: Uuid,
+) -> Result<(), sqlx::Error> {
+    use std::collections::{HashMap, HashSet, VecDeque};
+
+    // レイアウト定数
+    const NODE_WIDTH: f64 = 220.0;
+    const NODE_HEIGHT: f64 = 80.0;
+    const HORIZONTAL_SPACING: f64 = 120.0;
+    const VERTICAL_SPACING: f64 = 40.0;
+
+    // プロジェクト内の全タスクと依存関係を取得
+    let tasks = Task::find_by_project_id(pool, project_id).await?;
+    let dependencies = TaskDependency::find_by_project_id(pool, project_id).await?;
+
+    if dependencies.is_empty() {
+        return Ok(());
+    }
+
+    // 依存関係に関わるタスクIDを収集
+    let mut dag_task_ids: HashSet<Uuid> = HashSet::new();
+    for dep in &dependencies {
+        dag_task_ids.insert(dep.task_id);
+        dag_task_ids.insert(dep.depends_on_task_id);
+    }
+
+    // タスクIDからタスクへのマップを作成
+    let task_map: HashMap<Uuid, &Task> = tasks.iter().map(|t| (t.id, t)).collect();
+
+    // 依存関係グラフを構築
+    // in_degree: 各タスクへの入力エッジ数
+    // dependencies_map: タスクIDから依存先タスクIDへのマップ
+    // dependents_map: タスクIDからそのタスクに依存するタスクIDへのマップ
+    let mut in_degree: HashMap<Uuid, usize> = HashMap::new();
+    let mut dependents_map: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+
+    for task_id in &dag_task_ids {
+        in_degree.insert(*task_id, 0);
+        dependents_map.insert(*task_id, Vec::new());
+    }
+
+    for dep in &dependencies {
+        *in_degree.get_mut(&dep.task_id).unwrap() += 1;
+        dependents_map
+            .get_mut(&dep.depends_on_task_id)
+            .unwrap()
+            .push(dep.task_id);
+    }
+
+    // トポロジカルソート（Kahn's algorithm）でレベルを計算
+    let mut queue: VecDeque<Uuid> = VecDeque::new();
+    let mut levels: HashMap<Uuid, usize> = HashMap::new();
+
+    // 入力エッジがないタスク（ルートノード）をキューに追加
+    for (task_id, &degree) in &in_degree {
+        if degree == 0 {
+            queue.push_back(*task_id);
+            levels.insert(*task_id, 0);
+        }
+    }
+
+    // BFSでレベルを計算
+    while let Some(task_id) = queue.pop_front() {
+        let current_level = *levels.get(&task_id).unwrap();
+
+        if let Some(dependents) = dependents_map.get(&task_id) {
+            for &dependent_id in dependents {
+                // 依存するタスクのレベルは、依存先の最大レベル + 1
+                let new_level = current_level + 1;
+                let existing_level = levels.entry(dependent_id).or_insert(0);
+                if new_level > *existing_level {
+                    *existing_level = new_level;
+                }
+
+                // 入力エッジを減らし、0になったらキューに追加
+                let degree = in_degree.get_mut(&dependent_id).unwrap();
+                *degree -= 1;
+                if *degree == 0 {
+                    queue.push_back(dependent_id);
+                }
+            }
+        }
+    }
+
+    // レベルごとにタスクをグループ化
+    let mut level_groups: HashMap<usize, Vec<Uuid>> = HashMap::new();
+    for (task_id, level) in &levels {
+        level_groups
+            .entry(*level)
+            .or_insert_with(Vec::new)
+            .push(*task_id);
+    }
+
+    // 各タスクの位置を計算して更新
+    for (level, task_ids) in &level_groups {
+        let x = (*level as f64) * (NODE_WIDTH + HORIZONTAL_SPACING);
+
+        for (index, task_id) in task_ids.iter().enumerate() {
+            let y = (index as f64) * (NODE_HEIGHT + VERTICAL_SPACING);
+
+            // 位置が変わった場合のみ更新
+            if let Some(task) = task_map.get(task_id) {
+                let needs_update = task.dag_position_x != Some(x) || task.dag_position_y != Some(y);
+                if needs_update {
+                    Task::update_dag_position(pool, *task_id, Some(x), Some(y)).await?;
+                    tracing::debug!(
+                        "Updated task {} position to ({}, {})",
+                        task_id,
+                        x,
+                        y
+                    );
+                }
+            }
+        }
+    }
+
+    tracing::info!(
+        "Recalculated DAG layout for project {}: {} tasks in {} levels",
+        project_id,
+        dag_task_ids.len(),
+        level_groups.len()
+    );
+
+    Ok(())
 }
 
 pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {

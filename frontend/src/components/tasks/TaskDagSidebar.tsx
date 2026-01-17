@@ -1,4 +1,4 @@
-import { memo, forwardRef, type DragEvent } from 'react';
+import { memo, forwardRef, useState, useRef, useEffect, useCallback, type DragEvent } from 'react';
 import {
   Circle,
   CheckCircle2,
@@ -91,16 +91,90 @@ const TaskCard = memo(function TaskCard({
   );
 });
 
+const TASK_POOL_WIDTH_KEY = 'task-pool-width';
+const DEFAULT_WIDTH = 288; // w-72 = 18rem = 288px
+const MIN_WIDTH = 200;
+const MAX_WIDTH = 600;
+
 export interface TaskDagSidebarProps {
   /** Tasks in the pool (not placed in DAG yet) */
   poolTasks: TaskWithAttemptStatus[];
   onViewDetails: (task: TaskWithAttemptStatus) => void;
   /** Whether a DAG node is being dragged over this sidebar */
   isDropTarget?: boolean;
+  /** Width of the sidebar in pixels */
+  width?: number;
+  /** Callback when width changes */
+  onWidthChange?: (width: number) => void;
 }
 
 export const TaskDagSidebar = memo(forwardRef<HTMLDivElement, TaskDagSidebarProps>(
-  function TaskDagSidebar({ poolTasks, onViewDetails, isDropTarget = false }, ref) {
+  function TaskDagSidebar({ 
+    poolTasks, 
+    onViewDetails, 
+    isDropTarget = false,
+    width: controlledWidth,
+    onWidthChange,
+  }, ref) {
+    // Load initial width from localStorage or use default
+    const [internalWidth, setInternalWidth] = useState(() => {
+      if (controlledWidth !== undefined) return controlledWidth;
+      const saved = localStorage.getItem(TASK_POOL_WIDTH_KEY);
+      return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
+    });
+
+    const width = controlledWidth ?? internalWidth;
+    const isResizingRef = useRef(false);
+    const startXRef = useRef(0);
+    const startWidthRef = useRef(0);
+
+    // Save width to localStorage when it changes
+    useEffect(() => {
+      if (controlledWidth === undefined) {
+        localStorage.setItem(TASK_POOL_WIDTH_KEY, width.toString());
+      }
+    }, [width, controlledWidth]);
+
+    const handleResizeMove = useCallback((e: MouseEvent) => {
+      if (!isResizingRef.current) return;
+
+      const deltaX = e.clientX - startXRef.current;
+      const newWidth = Math.max(
+        MIN_WIDTH,
+        Math.min(MAX_WIDTH, startWidthRef.current + deltaX)
+      );
+
+      if (onWidthChange) {
+        onWidthChange(newWidth);
+      } else {
+        setInternalWidth(newWidth);
+      }
+    }, [onWidthChange]);
+
+    const handleResizeEnd = useCallback(() => {
+      if (isResizingRef.current) {
+        isResizingRef.current = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        document.removeEventListener('mousemove', handleResizeMove);
+        document.removeEventListener('mouseup', handleResizeEnd);
+      }
+    }, [handleResizeMove]);
+
+    const handleResizeStart = useCallback((e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      isResizingRef.current = true;
+      startXRef.current = e.clientX;
+      startWidthRef.current = width;
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      
+      // Add event listeners
+      document.addEventListener('mousemove', handleResizeMove);
+      document.addEventListener('mouseup', handleResizeEnd);
+    }, [width, handleResizeMove, handleResizeEnd]);
+
     // Sort: Todo first, then Done
     const sortedTasks = [...poolTasks].sort((a, b) => {
       if (a.status === 'done' && b.status !== 'done') return 1;
@@ -116,9 +190,10 @@ export const TaskDagSidebar = memo(forwardRef<HTMLDivElement, TaskDagSidebarProp
       <div
         ref={ref}
         className={cn(
-          "w-72 h-full bg-muted/30 border-r border-border flex flex-col shrink-0 relative transition-colors duration-200",
+          "h-full bg-muted/30 border-r border-border flex flex-col shrink-0 relative transition-colors duration-200",
           isDropTarget && "bg-slate-200/80 dark:bg-slate-700/80 border-primary"
         )}
+        style={{ width: `${width}px` }}
       >
         {/* Drop zone overlay */}
         {isDropTarget && (
@@ -177,6 +252,15 @@ export const TaskDagSidebar = memo(forwardRef<HTMLDivElement, TaskDagSidebarProp
         <p className="text-xs text-muted-foreground text-center">
           カードをドラッグしてDAGにドロップ
         </p>
+      </div>
+
+      {/* Resize handle */}
+      <div
+        className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:w-1.5 hover:bg-primary/50 transition-all group z-10"
+        onMouseDown={handleResizeStart}
+        aria-label="Resize task pool"
+      >
+        <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-border rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
     </div>
     );
