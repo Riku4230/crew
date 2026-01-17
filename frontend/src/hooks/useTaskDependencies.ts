@@ -8,24 +8,26 @@ export const dependencyKeys = {
     [...dependencyKeys.all, 'project', projectId] as const,
 };
 
-export function useTaskDependencies(projectId: string) {
+export function useTaskDependencies(projectId: string | undefined) {
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: dependencyKeys.byProject(projectId),
-    queryFn: () => dependenciesApi.getByProject(projectId),
+    queryKey: dependencyKeys.byProject(projectId || ''),
+    queryFn: () => dependenciesApi.getByProject(projectId!),
     enabled: !!projectId,
   });
 
   const invalidateDependencies = () => {
-    queryClient.invalidateQueries({
-      queryKey: dependencyKeys.byProject(projectId),
-    });
+    if (projectId) {
+      queryClient.invalidateQueries({
+        queryKey: dependencyKeys.byProject(projectId),
+      });
+    }
   };
 
   const createDependency = useMutation({
     mutationFn: (data: { task_id: string; depends_on_task_id: string }) =>
-      dependenciesApi.create(projectId, data),
+      dependenciesApi.create(projectId!, data),
     onSuccess: () => {
       invalidateDependencies();
     },
@@ -62,6 +64,7 @@ export function useTaskDependencies(projectId: string) {
     dependencies: query.data ?? [],
     isLoading: query.isLoading,
     error: query.error,
+    refetch: query.refetch,
     createDependency,
     deleteDependency,
     invalidateDependencies,
