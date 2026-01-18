@@ -70,7 +70,7 @@ jobs:
         id: version
         run: |
           # Get the latest version from npm registry
-          latest_npm_version=$(npm view vibe-kanban version 2>/dev/null || echo "0.0.0")
+          latest_npm_version=$(npm view crew version 2>/dev/null || echo "0.0.0")
           echo "Latest npm version: $latest_npm_version"
 
           timestamp=$(date +%Y%m%d%H%M%S)
@@ -677,4 +677,4 @@ jobs:
           generate_release_notes: true
           files: |
             vibe-kanban-${{ needs.bump-version.outputs.new_tag }}.zip
-            npx-cli/vibe-kanban-*.tgz
+            npx-cli/crew-*.tgz

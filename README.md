@@ -163,4 +163,15 @@ pnpm run generate-types
 
 ## ライセンス
 
-MIT
+このプロジェクトは [BloopAI/vibe-kanban](https://github.com/BloopAI/vibe-kanban) をフォークし、Apache-2.0 ライセンスの下で改変・公開しています。
+
+### 主な変更点
+
+- プロジェクト名を「Crew」に変更
+- タスク管理機能の拡張
+- AIエージェント連携の改善
+- カスタムエージェント設定の追加
+
+詳細なライセンス情報と遵守ガイドについては、[LICENSING.md](./docs/LICENSING.md) を参照してください。
+
+**ライセンス**: Apache-2.0（[LICENSE](./LICENSE) を参照）
