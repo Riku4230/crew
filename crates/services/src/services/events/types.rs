@@ -1,7 +1,7 @@
 use anyhow::Error as AnyhowError;
 use db::models::{
-    execution_process::ExecutionProcess, project::Project, scratch::Scratch, task::Task,
-    task_dependency::TaskDependency, workspace::Workspace,
+    dependency_genre::DependencyGenre, execution_process::ExecutionProcess, project::Project,
+    scratch::Scratch, task::Task, task_dependency::TaskDependency, workspace::Workspace,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::Error as SqlxError;
@@ -34,6 +34,8 @@ pub enum HookTables {
     Projects,
     #[strum(to_string = "task_dependencies")]
     TaskDependencies,
+    #[strum(to_string = "dependency_genres")]
+    DependencyGenres,
 }
 
 #[derive(Serialize, Deserialize, TS)]
@@ -45,6 +47,7 @@ pub enum RecordTypes {
     Scratch(Scratch),
     Project(Project),
     TaskDependency(TaskDependency),
+    DependencyGenre(DependencyGenre),
     DeletedTask {
         rowid: i64,
         project_id: Option<Uuid>,
@@ -71,6 +74,10 @@ pub enum RecordTypes {
     DeletedTaskDependency {
         rowid: i64,
         dependency_id: Option<Uuid>,
+    },
+    DeletedDependencyGenre {
+        rowid: i64,
+        genre_id: Option<Uuid>,
     },
 }
 

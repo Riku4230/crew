@@ -46,8 +46,15 @@ export function useTaskDependencies(projectId: string | undefined) {
   );
 
   const createDependency = useMutation({
-    mutationFn: (input: { task_id: string; depends_on_task_id: string }) =>
-      dependenciesApi.create(projectId!, input),
+    mutationFn: (input: {
+      task_id: string;
+      depends_on_task_id: string;
+      genre_id?: string | null;
+    }) => dependenciesApi.create(projectId!, {
+      task_id: input.task_id,
+      depends_on_task_id: input.depends_on_task_id,
+      genre_id: input.genre_id ?? null,
+    }),
     // No need for onSuccess - WebSocket will handle the update
     onError: (err: ApiError) => {
       if (err.status === 409) {
@@ -62,6 +69,21 @@ export function useTaskDependencies(projectId: string | undefined) {
         console.error('Failed to create dependency:', err.message);
         window.alert(`Failed to create dependency: ${err.message}`);
       }
+    },
+  });
+
+  const updateDependency = useMutation({
+    mutationFn: ({
+      dependencyId,
+      data,
+    }: {
+      dependencyId: string;
+      data: { genre_id?: string | null };
+    }) => dependenciesApi.update(dependencyId, data),
+    // No need for onSuccess - WebSocket will handle the update
+    onError: (err: ApiError) => {
+      console.error('Failed to update dependency:', err.message);
+      window.alert(`Failed to update dependency: ${err.message}`);
     },
   });
 
@@ -83,6 +105,7 @@ export function useTaskDependencies(projectId: string | undefined) {
     isConnected,
     error,
     createDependency,
+    updateDependency,
     deleteDependency,
     // Keep for backward compatibility, but no longer needed
     invalidateDependencies: () => {},

@@ -23,6 +23,7 @@ pub struct TaskDependency {
     pub id: Uuid,
     pub task_id: Uuid,            // The task that has the dependency
     pub depends_on_task_id: Uuid, // The task that must be completed first
+    pub genre_id: Option<Uuid>,   // Optional genre/category for this dependency
     pub created_at: DateTime<Utc>,
     pub created_by: DependencyCreator,
 }
@@ -32,6 +33,12 @@ pub struct CreateTaskDependency {
     pub task_id: Uuid,
     pub depends_on_task_id: Uuid,
     pub created_by: Option<DependencyCreator>,
+    pub genre_id: Option<Uuid>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct UpdateTaskDependency {
+    pub genre_id: Option<Option<Uuid>>, // Option<Option<>> to allow unsetting
 }
 
 impl TaskDependency {
@@ -43,6 +50,7 @@ impl TaskDependency {
                 id as "id!: Uuid",
                 task_id as "task_id!: Uuid",
                 depends_on_task_id as "depends_on_task_id!: Uuid",
+                genre_id as "genre_id: Uuid",
                 created_at as "created_at!: DateTime<Utc>",
                 created_by as "created_by!: DependencyCreator"
             FROM task_dependencies
@@ -61,6 +69,7 @@ impl TaskDependency {
                 id as "id!: Uuid",
                 task_id as "task_id!: Uuid",
                 depends_on_task_id as "depends_on_task_id!: Uuid",
+                genre_id as "genre_id: Uuid",
                 created_at as "created_at!: DateTime<Utc>",
                 created_by as "created_by!: DependencyCreator"
             FROM task_dependencies
@@ -82,6 +91,7 @@ impl TaskDependency {
                 id as "id!: Uuid",
                 task_id as "task_id!: Uuid",
                 depends_on_task_id as "depends_on_task_id!: Uuid",
+                genre_id as "genre_id: Uuid",
                 created_at as "created_at!: DateTime<Utc>",
                 created_by as "created_by!: DependencyCreator"
             FROM task_dependencies
@@ -104,6 +114,7 @@ impl TaskDependency {
                 td.id as "id!: Uuid",
                 td.task_id as "task_id!: Uuid",
                 td.depends_on_task_id as "depends_on_task_id!: Uuid",
+                td.genre_id as "genre_id: Uuid",
                 td.created_at as "created_at!: DateTime<Utc>",
                 td.created_by as "created_by!: DependencyCreator"
             FROM task_dependencies td
@@ -127,6 +138,7 @@ impl TaskDependency {
                 id as "id!: Uuid",
                 task_id as "task_id!: Uuid",
                 depends_on_task_id as "depends_on_task_id!: Uuid",
+                genre_id as "genre_id: Uuid",
                 created_at as "created_at!: DateTime<Utc>",
                 created_by as "created_by!: DependencyCreator"
             FROM task_dependencies
@@ -165,18 +177,56 @@ impl TaskDependency {
 
         sqlx::query_as!(
             TaskDependency,
-            r#"INSERT INTO task_dependencies (id, task_id, depends_on_task_id, created_by)
-               VALUES ($1, $2, $3, $4)
+            r#"INSERT INTO task_dependencies (id, task_id, depends_on_task_id, genre_id, created_by)
+               VALUES ($1, $2, $3, $4, $5)
                RETURNING
                    id as "id!: Uuid",
                    task_id as "task_id!: Uuid",
                    depends_on_task_id as "depends_on_task_id!: Uuid",
+                   genre_id as "genre_id: Uuid",
                    created_at as "created_at!: DateTime<Utc>",
                    created_by as "created_by!: DependencyCreator""#,
             id,
             data.task_id,
             data.depends_on_task_id,
+            data.genre_id,
             created_by
+        )
+        .fetch_one(pool)
+        .await
+    }
+
+    /// Update a dependency (e.g., change its genre)
+    pub async fn update(
+        pool: &SqlitePool,
+        id: Uuid,
+        data: &UpdateTaskDependency,
+    ) -> Result<Self, sqlx::Error> {
+        let existing = Self::find_by_id(pool, id)
+            .await?
+            .ok_or(sqlx::Error::RowNotFound)?;
+
+        // Handle the Option<Option<Uuid>> for genre_id
+        // None = don't update, Some(None) = set to null, Some(Some(id)) = set to id
+        let genre_id = match &data.genre_id {
+            Some(g) => g.as_ref(),
+            None => existing.genre_id.as_ref(),
+        };
+
+        sqlx::query_as!(
+            TaskDependency,
+            r#"UPDATE task_dependencies
+               SET genre_id = $2
+               WHERE id = $1
+               RETURNING
+                   id as "id!: Uuid",
+                   task_id as "task_id!: Uuid",
+                   depends_on_task_id as "depends_on_task_id!: Uuid",
+                   genre_id as "genre_id: Uuid",
+                   created_at as "created_at!: DateTime<Utc>",
+                   created_by as "created_by!: DependencyCreator""#,
+            id,
+            genre_id
         )
         .fetch_one(pool)
         .await

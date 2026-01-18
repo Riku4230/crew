@@ -1,6 +1,7 @@
 use db::models::{
-    execution_process::ExecutionProcess, project::Project, scratch::Scratch,
-    task::TaskWithAttemptStatus, task_dependency::TaskDependency, workspace::WorkspaceWithStatus,
+    dependency_genre::DependencyGenre, execution_process::ExecutionProcess, project::Project,
+    scratch::Scratch, task::TaskWithAttemptStatus, task_dependency::TaskDependency,
+    workspace::WorkspaceWithStatus,
 };
 use json_patch::{AddOperation, Patch, PatchOperation, RemoveOperation, ReplaceOperation};
 use uuid::Uuid;
@@ -237,12 +238,66 @@ pub mod dependency_patch {
         })])
     }
 
+    /// Create patch for updating a dependency
+    pub fn replace(dependency: &TaskDependency) -> Patch {
+        Patch(vec![PatchOperation::Replace(ReplaceOperation {
+            path: dependency_path(dependency.id)
+                .try_into()
+                .expect("Dependency path should be valid"),
+            value: serde_json::to_value(dependency)
+                .expect("Dependency serialization should not fail"),
+        })])
+    }
+
     /// Create patch for removing a dependency
     pub fn remove(dependency_id: Uuid) -> Patch {
         Patch(vec![PatchOperation::Remove(RemoveOperation {
             path: dependency_path(dependency_id)
                 .try_into()
                 .expect("Dependency path should be valid"),
+        })])
+    }
+}
+
+/// Helper functions for creating dependency genre-specific patches
+pub mod dependency_genre_patch {
+    use super::*;
+
+    fn genre_path(genre_id: Uuid) -> String {
+        format!(
+            "/dependency_genres/{}",
+            escape_pointer_segment(&genre_id.to_string())
+        )
+    }
+
+    /// Create patch for adding a new dependency genre
+    pub fn add(genre: &DependencyGenre) -> Patch {
+        Patch(vec![PatchOperation::Add(AddOperation {
+            path: genre_path(genre.id)
+                .try_into()
+                .expect("Genre path should be valid"),
+            value: serde_json::to_value(genre)
+                .expect("Genre serialization should not fail"),
+        })])
+    }
+
+    /// Create patch for updating a dependency genre
+    pub fn replace(genre: &DependencyGenre) -> Patch {
+        Patch(vec![PatchOperation::Replace(ReplaceOperation {
+            path: genre_path(genre.id)
+                .try_into()
+                .expect("Genre path should be valid"),
+            value: serde_json::to_value(genre)
+                .expect("Genre serialization should not fail"),
+        })])
+    }
+
+    /// Create patch for removing a dependency genre
+    pub fn remove(genre_id: Uuid) -> Patch {
+        Patch(vec![PatchOperation::Remove(RemoveOperation {
+            path: genre_path(genre_id)
+                .try_into()
+                .expect("Genre path should be valid"),
         })])
     }
 }

@@ -1,4 +1,5 @@
 use db::models::{
+    dependency_genre::DependencyGenre,
     execution_process::ExecutionProcess,
     project::Project,
     scratch::Scratch,
@@ -605,6 +606,82 @@ impl EventService {
                                             return Some(Ok(LogMsg::JsonPatch(patch)));
                                         }
                                         _ => {}
+                                    }
+                                }
+                            }
+                            None
+                        }
+                        Ok(other) => Some(Ok(other)), // Pass through non-patch messages
+                        Err(_) => None,               // Filter out broadcast errors
+                    }
+                }
+            });
+
+        // Start with initial snapshot, Ready signal, then live updates
+        let initial_stream = futures::stream::iter(vec![Ok(initial_msg), Ok(LogMsg::Ready)]);
+        let combined_stream = initial_stream.chain(filtered_stream).boxed();
+
+        Ok(combined_stream)
+    }
+
+    /// Stream raw dependency genre messages for a specific project with initial snapshot
+    pub async fn stream_dependency_genres_raw(
+        &self,
+        project_id: Uuid,
+    ) -> Result<futures::stream::BoxStream<'static, Result<LogMsg, std::io::Error>>, EventError>
+    {
+        // Get initial snapshot of dependency genres
+        let genres = DependencyGenre::find_by_project_id(&self.db.pool, project_id).await?;
+
+        // Convert genres array to object keyed by genre ID
+        let genres_map: serde_json::Map<String, serde_json::Value> = genres
+            .into_iter()
+            .map(|genre| (genre.id.to_string(), serde_json::to_value(genre).unwrap()))
+            .collect();
+
+        let initial_patch = json!([
+            {
+                "op": "replace",
+                "path": "/dependency_genres",
+                "value": genres_map
+            }
+        ]);
+        let initial_msg = LogMsg::JsonPatch(serde_json::from_value(initial_patch).unwrap());
+
+        // Clone necessary data for the async filter
+        let db_pool = self.db.pool.clone();
+
+        // Get filtered event stream
+        let filtered_stream =
+            BroadcastStream::new(self.msg_store.get_receiver()).filter_map(move |msg_result| {
+                let db_pool = db_pool.clone();
+                async move {
+                    match msg_result {
+                        Ok(LogMsg::JsonPatch(patch)) => {
+                            // Filter events based on project_id
+                            if let Some(patch_op) = patch.0.first() {
+                                // Check if this is a dependency genre patch
+                                if patch_op.path().starts_with("/dependency_genres/") {
+                                    let value_opt = match patch_op {
+                                        json_patch::PatchOperation::Add(op) => Some(&op.value),
+                                        json_patch::PatchOperation::Replace(op) => Some(&op.value),
+                                        json_patch::PatchOperation::Remove(_) => {
+                                            // For remove operations, we allow all and let client handle filtering
+                                            return Some(Ok(LogMsg::JsonPatch(patch)));
+                                        }
+                                        _ => None,
+                                    };
+
+                                    if let Some(value) = value_opt {
+                                        // Parse genre data directly from value
+                                        if let Ok(genre) =
+                                            serde_json::from_value::<DependencyGenre>(value.clone())
+                                        {
+                                            // Check if the genre belongs to this project
+                                            if genre.project_id == project_id {
+                                                return Some(Ok(LogMsg::JsonPatch(patch)));
+                                            }
+                                        }
                                     }
                                 }
                             }

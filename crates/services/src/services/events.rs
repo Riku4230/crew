@@ -3,8 +3,9 @@ use std::{str::FromStr, sync::Arc};
 use db::{
     DBService,
     models::{
-        execution_process::ExecutionProcess, project::Project, scratch::Scratch, session::Session,
-        task::Task, task_dependency::TaskDependency, workspace::Workspace,
+        dependency_genre::DependencyGenre, execution_process::ExecutionProcess, project::Project,
+        scratch::Scratch, session::Session, task::Task, task_dependency::TaskDependency,
+        workspace::Workspace,
     },
 };
 use serde_json::json;
@@ -21,8 +22,8 @@ mod streams;
 pub mod types;
 
 pub use patches::{
-    dependency_patch, execution_process_patch, project_patch, scratch_patch, task_patch,
-    workspace_patch,
+    dependency_genre_patch, dependency_patch, execution_process_patch, project_patch, scratch_patch,
+    task_patch, workspace_patch,
 };
 pub use types::{EventError, EventPatch, EventPatchInner, HookTables, RecordTypes};
 
@@ -172,6 +173,15 @@ impl EventService {
                                     msg_store_for_preupdate.push_patch(patch);
                                 }
                             }
+                            "dependency_genres" => {
+                                if let Ok(value) = preupdate.get_old_column_value(0)
+                                    && let Ok(genre_id) =
+                                        <Uuid as Decode<Sqlite>>::decode(value)
+                                {
+                                    let patch = dependency_genre_patch::remove(genre_id);
+                                    msg_store_for_preupdate.push_patch(patch);
+                                }
+                            }
                             _ => {}
                         }
                     }
@@ -192,7 +202,8 @@ impl EventService {
                                 | (HookTables::Workspaces, SqliteOperation::Delete)
                                 | (HookTables::ExecutionProcesses, SqliteOperation::Delete)
                                 | (HookTables::Scratch, SqliteOperation::Delete)
-                                | (HookTables::TaskDependencies, SqliteOperation::Delete) => {
+                                | (HookTables::TaskDependencies, SqliteOperation::Delete)
+                                | (HookTables::DependencyGenres, SqliteOperation::Delete) => {
                                     // Deletions handled in preupdate hook for reliable data capture
                                     return;
                                 }
@@ -288,6 +299,22 @@ impl EventService {
                                         }
                                     }
                                 }
+                                (HookTables::DependencyGenres, _) => {
+                                    match DependencyGenre::find_by_rowid(&db.pool, rowid).await {
+                                        Ok(Some(genre)) => RecordTypes::DependencyGenre(genre),
+                                        Ok(None) => RecordTypes::DeletedDependencyGenre {
+                                            rowid,
+                                            genre_id: None,
+                                        },
+                                        Err(e) => {
+                                            tracing::error!(
+                                                "Failed to fetch dependency_genre: {:?}",
+                                                e
+                                            );
+                                            return;
+                                        }
+                                    }
+                                }
                             };
 
                             let db_op: &str = match hook.operation {
@@ -374,12 +401,13 @@ impl EventService {
                                         dependency_id = %dependency.id,
                                         task_id = %dependency.task_id,
                                         depends_on = %dependency.depends_on_task_id,
+                                        genre_id = ?dependency.genre_id,
                                         op = db_op,
                                         "Dependency hook fired"
                                     );
                                     let patch = match hook.operation {
                                         SqliteOperation::Insert => dependency_patch::add(dependency),
-                                        SqliteOperation::Update => dependency_patch::add(dependency), // Dependencies are not updated, only created/deleted
+                                        SqliteOperation::Update => dependency_patch::replace(dependency),
                                         _ => dependency_patch::add(dependency),
                                     };
                                     tracing::debug!(
@@ -394,6 +422,29 @@ impl EventService {
                                     ..
                                 } => {
                                     let patch = dependency_patch::remove(*dependency_id);
+                                    msg_store_for_hook.push_patch(patch);
+                                    return;
+                                }
+                                RecordTypes::DependencyGenre(genre) => {
+                                    tracing::debug!(
+                                        genre_id = %genre.id,
+                                        name = %genre.name,
+                                        op = db_op,
+                                        "Dependency genre hook fired"
+                                    );
+                                    let patch = match hook.operation {
+                                        SqliteOperation::Insert => dependency_genre_patch::add(genre),
+                                        SqliteOperation::Update => dependency_genre_patch::replace(genre),
+                                        _ => dependency_genre_patch::add(genre),
+                                    };
+                                    msg_store_for_hook.push_patch(patch);
+                                    return;
+                                }
+                                RecordTypes::DeletedDependencyGenre {
+                                    genre_id: Some(genre_id),
+                                    ..
+                                } => {
+                                    let patch = dependency_genre_patch::remove(*genre_id);
                                     msg_store_for_hook.push_patch(patch);
                                     return;
                                 }

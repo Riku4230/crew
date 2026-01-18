@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE dependency_genres\n                   SET position = $2, updated_at = datetime('now', 'subsec')\n                   WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "518d55129ee4b124e52232632f0b92fe6b4b0b6ae68a0223126d0eed375dbf8b"
+}

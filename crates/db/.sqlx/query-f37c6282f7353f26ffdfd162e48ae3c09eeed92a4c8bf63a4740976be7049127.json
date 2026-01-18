@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                td.id as \"id!: Uuid\",\n                td.task_id as \"task_id!: Uuid\",\n                td.depends_on_task_id as \"depends_on_task_id!: Uuid\",\n                td.genre_id as \"genre_id: Uuid\",\n                td.created_at as \"created_at!: DateTime<Utc>\",\n                td.created_by as \"created_by!: DependencyCreator\"\n            FROM task_dependencies td\n            INNER JOIN tasks t ON td.task_id = t.id\n            WHERE t.project_id = $1\n            ORDER BY td.created_at ASC",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "task_id!: Uuid",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "depends_on_task_id!: Uuid",
+        "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "genre_id: Uuid",
+        "ordinal": 3,
+        "type_info": "Blob"
+      },
+      {
+        "name": "created_at!: DateTime<Utc>",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_by!: DependencyCreator",
+        "ordinal": 5,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "f37c6282f7353f26ffdfd162e48ae3c09eeed92a4c8bf63a4740976be7049127"
+}

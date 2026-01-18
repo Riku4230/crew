@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                id as \"id!: Uuid\",\n                project_id as \"project_id!: Uuid\",\n                name,\n                color,\n                position as \"position!: i32\",\n                created_at as \"created_at!: DateTime<Utc>\",\n                updated_at as \"updated_at!: DateTime<Utc>\"\n            FROM dependency_genres\n            WHERE project_id = $1 AND name = $2",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "project_id!: Uuid",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "name",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "color",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "position!: i32",
+        "ordinal": 4,
+        "type_info": "Integer"
+      },
+      {
+        "name": "created_at!: DateTime<Utc>",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "updated_at!: DateTime<Utc>",
+        "ordinal": 6,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "19390383da428204873378cec73a7899328e5650b4a7615a87078e8e1a55ae49"
+}

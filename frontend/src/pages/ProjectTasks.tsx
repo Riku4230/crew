@@ -47,7 +47,7 @@ import TaskKanbanBoard, {
   type KanbanColumnItem,
 } from '@/components/tasks/TaskKanbanBoard';
 import { TaskTableView } from '@/components/tasks/TaskTableView';
-import { TaskDAGView } from '@/components/tasks/TaskDagView';
+import { TaskDAGView } from '@/components/tasks/TaskDAGView';
 import { ViewSwitcher } from '@/components/tasks/ViewSwitcher';
 import { useTaskView } from '@/contexts/TaskViewContext';
 import { useTaskFilters } from '@/contexts/TaskFiltersContext';

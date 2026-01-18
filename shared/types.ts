@@ -64,9 +64,19 @@ clear_dag_position: boolean, };
 
 export type DependencyCreator = "user" | "ai";
 
-export type TaskDependency = { id: string, task_id: string, depends_on_task_id: string, created_at: string, created_by: DependencyCreator, };
+export type TaskDependency = { id: string, task_id: string, depends_on_task_id: string, genre_id: string | null, created_at: string, created_by: DependencyCreator, };
 
-export type CreateTaskDependency = { task_id: string, depends_on_task_id: string, created_by: DependencyCreator | null, };
+export type CreateTaskDependency = { task_id: string, depends_on_task_id: string, created_by: DependencyCreator | null, genre_id: string | null, };
+
+export type UpdateTaskDependency = { genre_id: string | null | null, };
+
+export type DependencyGenre = { id: string, project_id: string, name: string, color: string, position: number, created_at: string, updated_at: string, };
+
+export type CreateDependencyGenre = { project_id: string, name: string, color: string | null, position: number | null, };
+
+export type UpdateDependencyGenre = { name: string | null, color: string | null, position: number | null, };
+
+export type ReorderGenresRequest = { genre_ids: Array<string>, };
 
 export type DraftFollowUpData = { message: string, variant: string | null, };
 
@@ -274,9 +284,17 @@ export type ShareTaskResponse = { shared_task_id: string, };
 
 export type CreateAndStartTaskRequest = { task: CreateTask, executor_profile_id: ExecutorProfileId, repos: Array<WorkspaceRepoInput>, };
 
-export type CreateDependencyRequest = { task_id: string, depends_on_task_id: string, created_by: DependencyCreator | null, };
+export type CreateDependencyRequest = { task_id: string, depends_on_task_id: string, created_by: DependencyCreator | null, genre_id: string | null, };
+
+export type UpdateDependencyRequest = { genre_id: string | null | null, };
 
 export type UpdatePositionRequest = { position: number, };
+
+export type CreateGenreRequest = { name: string, color: string | null, position: number | null, };
+
+export type UpdateGenreRequest = { name: string | null, color: string | null, position: number | null, };
+
+export type ReorderGenresApiRequest = { genre_ids: Array<string>, };
 
 export type OrchestratorStateResponse = { state: OrchestratorState, plan: ExecutionPlan, };
 

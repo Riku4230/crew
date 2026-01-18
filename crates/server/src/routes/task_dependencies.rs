@@ -6,13 +6,13 @@ use axum::{
     },
     middleware::from_fn_with_state,
     response::{IntoResponse, Json as ResponseJson},
-    routing::{delete, get, put},
+    routing::{get, put},
 };
 use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use db::models::{
     project::Project,
     task::Task,
-    task_dependency::{CreateTaskDependency, TaskDependency},
+    task_dependency::{CreateTaskDependency, TaskDependency, UpdateTaskDependency},
 };
 use deployment::Deployment;
 use serde::Deserialize;
@@ -28,6 +28,13 @@ pub struct CreateDependencyRequest {
     pub task_id: Uuid,
     pub depends_on_task_id: Uuid,
     pub created_by: Option<db::models::task_dependency::DependencyCreator>,
+    pub genre_id: Option<Uuid>,
+}
+
+/// Request body for updating a dependency
+#[derive(Debug, Deserialize, TS)]
+pub struct UpdateDependencyRequest {
+    pub genre_id: Option<Option<Uuid>>, // Option<Option<>> to allow unsetting: None = no change, Some(None) = clear, Some(Some(id)) = set
 }
 
 /// Request body for updating task position
@@ -163,6 +170,7 @@ pub async fn create_dependency(
         task_id: payload.task_id,
         depends_on_task_id: payload.depends_on_task_id,
         created_by: payload.created_by,
+        genre_id: payload.genre_id,
     };
 
     let dependency = TaskDependency::create(pool, &create_data).await?;
@@ -177,6 +185,40 @@ pub async fn create_dependency(
     );
 
     Ok(ResponseJson(ApiResponse::success(dependency)))
+}
+
+/// Update a dependency (e.g., change its genre)
+pub async fn update_dependency(
+    State(deployment): State<DeploymentImpl>,
+    Path(dependency_id): Path<Uuid>,
+    Json(payload): Json<UpdateDependencyRequest>,
+) -> Result<ResponseJson<ApiResponse<TaskDependency>>, ApiError> {
+    let pool = &deployment.db().pool;
+
+    // 依存関係が存在するかチェック
+    TaskDependency::find_by_id(pool, dependency_id)
+        .await?
+        .ok_or_else(|| {
+            ApiError::NotFound(format!(
+                "依存関係が見つかりません: {}",
+                dependency_id
+            ))
+        })?;
+
+    // 更新実行
+    let update_data = UpdateTaskDependency {
+        genre_id: payload.genre_id,
+    };
+
+    let updated = TaskDependency::update(pool, dependency_id, &update_data).await?;
+
+    tracing::info!(
+        "Updated dependency {}: genre_id = {:?}",
+        dependency_id,
+        updated.genre_id
+    );
+
+    Ok(ResponseJson(ApiResponse::success(updated)))
 }
 
 /// Delete a dependency by ID
@@ -385,7 +427,8 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
         ));
 
     // 依存関係の直接操作（dependency_idのみ）
-    let dependencies_router = Router::new().route("/{dependency_id}", delete(delete_dependency));
+    let dependencies_router = Router::new()
+        .route("/{dependency_id}", put(update_dependency).delete(delete_dependency));
 
     // タスク位置の更新
     let task_position_router = Router::new().route("/{task_id}/position", put(update_task_position));

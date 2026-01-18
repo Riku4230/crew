@@ -269,6 +269,7 @@ mod tests {
             id: Uuid::new_v4(),
             task_id,
             depends_on_task_id: depends_on,
+            genre_id: None,
             created_by: DependencyCreator::User,
             created_at: chrono::Utc::now(),
         }

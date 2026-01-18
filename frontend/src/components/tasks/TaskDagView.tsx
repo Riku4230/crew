@@ -16,20 +16,22 @@ import {
   Panel,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { LayoutGrid, Play, Pause, Square, Wifi, WifiOff, RefreshCw, Plus } from 'lucide-react';
+import { LayoutGrid, Play, Pause, Square, Wifi, WifiOff, RefreshCw, Plus, Tags, Layers } from 'lucide-react';
 import { TaskFormDialog } from '@/components/dialogs/tasks/TaskFormDialog';
 import { TaskDagSidebar, SIDEBAR_TASK_DRAG_TYPE } from './TaskDagSidebar';
 
 import type { TaskWithAttemptStatus, TaskDependency, TaskReadiness } from 'shared/types';
-import { TaskDAGNode, type TaskNodeData } from './TaskDagNode';
+import { TaskDAGNode, type TaskNodeData } from './TaskDAGNode';
 import { TaskDAGEdge } from './TaskDAGEdge';
 import {
   useTaskDependencies,
   createEdgeIdFromDependency,
   getDependencyIdFromEdgeId,
 } from '@/hooks/useTaskDependencies';
+import { useDependencyGenres } from '@/hooks/useDependencyGenres';
+import { DependencyGenreManager } from './DependencyGenreManager';
 import { useTaskMutations } from '@/hooks/useTaskMutations';
-import { getLayoutedElements } from '@/lib/dagLayout';
+import { getLayoutedElements, getSwimlaneLayoutedElements, type SwimlaneLane } from '@/lib/dagLayout';
 // import { useOrchestration } from '@/hooks/useOrchestration'; // Disabled until backend API is ready
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -105,22 +107,29 @@ function layoutNodes(
 
 function createEdges(
   dependencies: TaskDependency[],
-  onDelete: (edgeId: string) => void
+  onDelete: (edgeId: string) => void,
+  genresById: Record<string, import('shared/types').DependencyGenre> = {}
 ): Edge[] {
-  return dependencies.map((dep) => ({
-    id: createEdgeIdFromDependency(dep),
-    source: dep.depends_on_task_id,
-    target: dep.task_id,
-    type: 'dependency',
-    markerEnd: {
-      type: MarkerType.ArrowClosed,
-      width: 15,
-      height: 15,
-    },
-    data: {
-      onDelete,
-    },
-  }));
+  return dependencies.map((dep) => {
+    const genre = dep.genre_id ? genresById[dep.genre_id] : undefined;
+    return {
+      id: createEdgeIdFromDependency(dep),
+      source: dep.depends_on_task_id,
+      target: dep.task_id,
+      type: 'dependency',
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        width: 15,
+        height: 15,
+        color: genre?.color,
+      },
+      data: {
+        onDelete,
+        genreColor: genre?.color,
+        genreName: genre?.name,
+      },
+    };
+  });
 }
 
 // Inner component that uses useReactFlow (must be inside ReactFlowProvider)
@@ -137,6 +146,7 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
     deleteDependency,
     isConnected: wsConnected,
   } = useTaskDependencies(projectId);
+  const { genres, genresById } = useDependencyGenres(projectId);
   const { updateTask } = useTaskMutations(projectId);
 
   // Track previous dependency count to detect changes
@@ -175,6 +185,10 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
 
   // State for auto-layout
   const [autoLayoutEnabled, setAutoLayoutEnabled] = useState(true);
+
+  // State for swimlane view mode
+  const [swimlaneMode, setSwimlaneMode] = useState(false);
+  const [swimlaneLanes, setSwimlaneLanes] = useState<SwimlaneLane[]>([]);
 
   // Calculate progress
   const totalTasks = tasks.length;
@@ -235,8 +249,8 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
   );
 
   const initialEdges = useMemo(
-    () => createEdges(dependencies, handleEdgeDelete),
-    [dependencies, handleEdgeDelete]
+    () => createEdges(dependencies, handleEdgeDelete, genresById),
+    [dependencies, handleEdgeDelete, genresById]
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
@@ -274,22 +288,41 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
   }, [dagTasks, onViewDetails, getTaskReadiness, setNodes]);
 
   useEffect(() => {
-    setEdges(createEdges(dependencies, handleEdgeDelete));
-  }, [dependencies, handleEdgeDelete, setEdges]);
+    setEdges(createEdges(dependencies, handleEdgeDelete, genresById));
+  }, [dependencies, handleEdgeDelete, genresById, setEdges]);
 
-  // Auto layout using dagre (Left to Right)
+  // Auto layout using dagre (Left to Right) or swimlane mode
   const applyAutoLayout = useCallback((nodesToLayout: Node<TaskNodeData>[], edgesToLayout: Edge[]) => {
-    const layoutedNodes = getLayoutedElements(nodesToLayout, edgesToLayout, {
-      direction: 'LR',
-      nodeSpacing: 50,
-      rankSpacing: 120,
-    });
-    setNodes(layoutedNodes);
+    if (swimlaneMode && genres.length > 0) {
+      // Use swimlane layout
+      const genreInfo = genres.map((g) => ({
+        id: g.id,
+        name: g.name,
+        color: g.color,
+        position: g.position,
+      }));
+      const result = getSwimlaneLayoutedElements(nodesToLayout, edgesToLayout, genreInfo, {
+        direction: 'LR',
+        nodeSpacing: 50,
+        rankSpacing: 120,
+      });
+      setNodes(result.nodes);
+      setSwimlaneLanes(result.lanes);
+    } else {
+      // Use standard dagre layout
+      const layoutedNodes = getLayoutedElements(nodesToLayout, edgesToLayout, {
+        direction: 'LR',
+        nodeSpacing: 50,
+        rankSpacing: 120,
+      });
+      setNodes(layoutedNodes);
+      setSwimlaneLanes([]);
+    }
     // Fit view after layout with a small delay to ensure nodes are positioned
     setTimeout(() => {
       fitView({ padding: 0.2, duration: 300 });
     }, 50);
-  }, [setNodes, fitView]);
+  }, [setNodes, fitView, swimlaneMode, genres]);
 
   const onAutoLayout = useCallback(() => {
     applyAutoLayout(nodes, edges);
@@ -309,7 +342,7 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
       initialLayoutAppliedRef.current = true;
       const timer = setTimeout(() => {
         const freshNodes = layoutNodes(dagTasks, onViewDetails, getTaskReadiness);
-        const freshEdges = createEdges(dependencies, handleEdgeDelete);
+        const freshEdges = createEdges(dependencies, handleEdgeDelete, genresById);
         applyAutoLayout(freshNodes, freshEdges);
       }, 100);
       prevDepsCountRef.current = depsCount;
@@ -319,12 +352,12 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
     // Subsequent layouts: only when dependencies actually changed
     if (initialLayoutAppliedRef.current && autoLayoutEnabled && depsCount !== prevDepsCount) {
       const freshNodes = layoutNodes(dagTasks, onViewDetails, getTaskReadiness);
-      const freshEdges = createEdges(dependencies, handleEdgeDelete);
+      const freshEdges = createEdges(dependencies, handleEdgeDelete, genresById);
       applyAutoLayout(freshNodes, freshEdges);
     }
 
     prevDepsCountRef.current = depsCount;
-  }, [depsCount, nodesCount, edgesCount, autoLayoutEnabled, dagTasks, onViewDetails, getTaskReadiness, dependencies, handleEdgeDelete, applyAutoLayout]);
+  }, [depsCount, nodesCount, edgesCount, autoLayoutEnabled, dagTasks, onViewDetails, getTaskReadiness, dependencies, handleEdgeDelete, genresById, applyAutoLayout]);
 
   // Handle new connections (creating dependencies)
   const onConnect = useCallback(
@@ -424,16 +457,13 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
   }, []);
 
   // Handle node drag start
-  const handleNodeDragStart = useCallback(
-    (_event: React.MouseEvent, _node: Node<TaskNodeData>) => {
-      // Drag started - could track dragging node if needed
-    },
-    []
-  );
+  const handleNodeDragStart = useCallback(() => {
+    // Drag started - could track dragging node if needed
+  }, []);
 
   // Handle node drag - track position for visual feedback
   const handleNodeDrag = useCallback(
-    (event: React.MouseEvent, _node: Node<TaskNodeData>) => {
+    (event: React.MouseEvent) => {
       const overSidebar = isOverSidebar(event.clientX, event.clientY);
       setIsDraggingOverSidebar(overSidebar);
     },
@@ -503,6 +533,35 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
         >
           <Controls />
           <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
+          {/* Swimlane backgrounds */}
+          {swimlaneMode && swimlaneLanes.length > 0 && (
+            <Panel position="top-left" className="pointer-events-none !p-0 !m-0" style={{ top: 0, left: 0, right: 0 }}>
+              <div className="absolute inset-0">
+                {swimlaneLanes.map((lane) => (
+                  <div
+                    key={lane.genreId ?? 'no-genre'}
+                    className="absolute left-0 right-0 border-b border-border/30"
+                    style={{
+                      top: lane.y,
+                      height: lane.height,
+                      backgroundColor: `${lane.genreColor}10`,
+                    }}
+                  >
+                    <div
+                      className="sticky left-0 px-2 py-1 text-xs font-medium text-muted-foreground"
+                      style={{ backgroundColor: `${lane.genreColor}20` }}
+                    >
+                      <div
+                        className="inline-block w-2 h-2 rounded-full mr-1"
+                        style={{ backgroundColor: lane.genreColor }}
+                      />
+                      {lane.genreName}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+          )}
           <Panel position="top-left" className="bg-card/80 backdrop-blur-sm rounded-lg p-2 text-xs text-muted-foreground">
             {t('dag.instructions', 'Drag from bottom handle to top handle to create dependencies')}
           </Panel>
@@ -515,6 +574,44 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
             >
               <Plus className="h-4 w-4 mr-1" />
               {t('dag.addTask', 'タスク追加')}
+            </Button>
+            <DependencyGenreManager
+              projectId={projectId}
+              trigger={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-card/80 backdrop-blur-sm"
+                  title={t('dag.manageGenres', 'ジャンル管理')}
+                >
+                  <Tags className="h-4 w-4 mr-1" />
+                  {t('dag.genres', 'ジャンル')}
+                  {genres.length > 0 && (
+                    <span className="ml-1 text-xs bg-muted rounded-full px-1.5">
+                      {genres.length}
+                    </span>
+                  )}
+                </Button>
+              }
+            />
+            <Button
+              variant={swimlaneMode ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                setSwimlaneMode(!swimlaneMode);
+                // Trigger re-layout when switching modes
+                setTimeout(() => {
+                  const freshNodes = layoutNodes(dagTasks, onViewDetails, getTaskReadiness);
+                  const freshEdges = createEdges(dependencies, handleEdgeDelete, genresById);
+                  applyAutoLayout(freshNodes, freshEdges);
+                }, 50);
+              }}
+              className={swimlaneMode ? "" : "bg-card/80 backdrop-blur-sm"}
+              title={swimlaneMode ? t('dag.swimlaneOn', 'スイムレーンON') : t('dag.swimlaneOff', 'スイムレーンOFF')}
+              disabled={genres.length === 0}
+            >
+              <Layers className="h-4 w-4 mr-1" />
+              {t('dag.swimlane', 'レーン')}
             </Button>
             <Button
               variant={autoLayoutEnabled ? "default" : "outline"}
@@ -636,6 +733,29 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
               </div>
             </div>
           </Panel>
+          {/* Genre Legend */}
+          {genres.length > 0 && (
+            <Panel position="bottom-right" className="bg-card/95 backdrop-blur-sm rounded-lg p-3 shadow-lg">
+              <div className="text-xs font-medium text-muted-foreground mb-2">
+                {t('dag.genreLegend', 'ジャンル')}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {genres.map((genre) => (
+                  <div key={genre.id} className="flex items-center gap-2">
+                    <div
+                      className="w-3 h-3 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: genre.color }}
+                    />
+                    <span className="text-xs">{genre.name}</span>
+                  </div>
+                ))}
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <div className="w-3 h-3 rounded-full flex-shrink-0 bg-muted-foreground/50" />
+                  <span className="text-xs">{t('dag.noGenre', 'ジャンルなし')}</span>
+                </div>
+              </div>
+            </Panel>
+          )}
           </ReactFlow>
         </div>
       </div>

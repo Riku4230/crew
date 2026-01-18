@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO dependency_genres (id, project_id, name, color, position)\n               VALUES ($1, $2, $3, $4, $5)\n               RETURNING\n                   id as \"id!: Uuid\",\n                   project_id as \"project_id!: Uuid\",\n                   name,\n                   color,\n                   position as \"position!: i32\",\n                   created_at as \"created_at!: DateTime<Utc>\",\n                   updated_at as \"updated_at!: DateTime<Utc>\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "project_id!: Uuid",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "name",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "color",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "position!: i32",
+        "ordinal": 4,
+        "type_info": "Integer"
+      },
+      {
+        "name": "created_at!: DateTime<Utc>",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "updated_at!: DateTime<Utc>",
+        "ordinal": 6,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d9451d4a14b7c9b366a12e7e2d7061a251f2e20522692d1ff0c2f694ce659cf6"
+}

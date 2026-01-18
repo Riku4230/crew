@@ -8,6 +8,7 @@ use crate::DeploymentImpl;
 pub mod approvals;
 pub mod config;
 pub mod containers;
+pub mod dependency_genres;
 pub mod events;
 pub mod execution_processes;
 pub mod filesystem;
@@ -37,6 +38,7 @@ pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
         .merge(projects::router(&deployment))
         .merge(tasks::router(&deployment))
         .merge(task_dependencies::router(&deployment))
+        .merge(dependency_genres::router(&deployment))
         .merge(shared_tasks::router())
         .merge(task_attempts::router(&deployment))
         .merge(execution_processes::router(&deployment))

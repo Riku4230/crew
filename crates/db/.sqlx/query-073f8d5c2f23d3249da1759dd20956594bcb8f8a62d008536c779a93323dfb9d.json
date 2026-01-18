@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE task_dependencies\n               SET genre_id = $2\n               WHERE id = $1\n               RETURNING\n                   id as \"id!: Uuid\",\n                   task_id as \"task_id!: Uuid\",\n                   depends_on_task_id as \"depends_on_task_id!: Uuid\",\n                   genre_id as \"genre_id: Uuid\",\n                   created_at as \"created_at!: DateTime<Utc>\",\n                   created_by as \"created_by!: DependencyCreator\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "task_id!: Uuid",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "depends_on_task_id!: Uuid",
+        "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "genre_id: Uuid",
+        "ordinal": 3,
+        "type_info": "Blob"
+      },
+      {
+        "name": "created_at!: DateTime<Utc>",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_by!: DependencyCreator",
+        "ordinal": 5,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "073f8d5c2f23d3249da1759dd20956594bcb8f8a62d008536c779a93323dfb9d"
+}

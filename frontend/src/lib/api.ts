@@ -11,7 +11,9 @@ import {
   CreateAndStartTaskRequest,
   CreateTaskAttemptBody,
   CreateTag,
+  CreateDependencyGenre,
   CreateTaskDependency,
+  DependencyGenre,
   DirectoryListResponse,
   DirectoryEntry,
   ExecutionProcess,
@@ -1541,12 +1543,85 @@ export const dependenciesApi = {
     return handleApiResponse<TaskDependency>(response);
   },
 
+  /** Update a dependency (e.g., change its genre) */
+  update: async (
+    dependencyId: string,
+    data: { genre_id?: string | null }
+  ): Promise<TaskDependency> => {
+    const response = await makeRequest(`/api/dependencies/${dependencyId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return handleApiResponse<TaskDependency>(response);
+  },
+
   /** Delete a dependency */
   delete: async (dependencyId: string): Promise<void> => {
     const response = await makeRequest(`/api/dependencies/${dependencyId}`, {
       method: 'DELETE',
     });
     return handleApiResponse<void>(response);
+  },
+};
+
+// Dependency Genres API
+export const dependencyGenresApi = {
+  /** Get all genres for a project */
+  getByProject: async (projectId: string): Promise<DependencyGenre[]> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/dependency-genres`
+    );
+    return handleApiResponse<DependencyGenre[]>(response);
+  },
+
+  /** Create a new genre */
+  create: async (
+    projectId: string,
+    data: Omit<CreateDependencyGenre, 'project_id'>
+  ): Promise<DependencyGenre> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/dependency-genres`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+    return handleApiResponse<DependencyGenre>(response);
+  },
+
+  /** Update a genre */
+  update: async (
+    genreId: string,
+    data: { name?: string; color?: string; position?: number }
+  ): Promise<DependencyGenre> => {
+    const response = await makeRequest(`/api/dependency-genres/${genreId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return handleApiResponse<DependencyGenre>(response);
+  },
+
+  /** Delete a genre */
+  delete: async (genreId: string): Promise<void> => {
+    const response = await makeRequest(`/api/dependency-genres/${genreId}`, {
+      method: 'DELETE',
+    });
+    return handleApiResponse<void>(response);
+  },
+
+  /** Reorder genres */
+  reorder: async (
+    projectId: string,
+    genreIds: string[]
+  ): Promise<DependencyGenre[]> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/dependency-genres/reorder`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ genre_ids: genreIds }),
+      }
+    );
+    return handleApiResponse<DependencyGenre[]>(response);
   },
 };
 

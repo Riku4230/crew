@@ -956,6 +956,7 @@ impl TaskServer {
             task_id,
             depends_on_task_id,
             created_by: Some(DependencyCreator::Ai),
+            genre_id: None,
         };
 
         let dependency: TaskDependency = match self

@@ -34,3 +34,10 @@ export { useOrganizationMutations } from './useOrganizationMutations';
 export { useVariant } from './useVariant';
 export { useRetryProcess } from './useRetryProcess';
 export { useTaskDependencies, dependencyKeys } from './useTaskDependencies';
+export {
+  useDependencyGenres,
+  genreKeys,
+  getGenreColor,
+  DEFAULT_GENRE_COLORS,
+  getNextGenreColor,
+} from './useDependencyGenres';
