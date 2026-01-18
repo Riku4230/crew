@@ -532,7 +532,7 @@ export function CompletedTasks() {
 
       <div className="flex-1 min-h-0 flex flex-col">
         <div className="flex items-center justify-between px-4 py-2 border-b shrink-0 gap-4">
-          <div />
+          {viewMode === 'dag' ? <TaskStatusTabs /> : <div />}
           <ViewSwitcher />
         </div>
         <div className="flex-1 min-h-0">{taskListContent}</div>

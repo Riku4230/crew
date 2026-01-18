@@ -26,7 +26,7 @@ Crewは、チーム全員がAIコーディングエージェントを活用で�
 
 ```bash
 # リポジトリをクローン
-git clone https://github.com/anthropics/crew.git
+git clone https://github.com/Riku4230/crew.git
 cd crew
 
 # 依存関係をインストール
@@ -36,7 +36,7 @@ pnpm i
 pnpm run dev
 ```
 
-Crewは自動的にブラウザで `http://localhost:3000` を開きます。
+Crewは自動的にブラウザで `http://localhost:4000` を開きます。
 
 ## 機能
 
