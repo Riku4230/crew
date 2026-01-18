@@ -67,11 +67,6 @@ export const useJsonPatchWsStream = <T extends object>(
     const filtered = deduplicatePatches ? deduplicatePatches(patches) : patches;
     if (!filtered.length) return;
 
-    // Debug: Log task patches being applied
-    if (filtered.some(p => p.path.includes('dag_position') || p.path.startsWith('/tasks/'))) {
-      console.log('[WS] Applying task/dag patches:', JSON.stringify(filtered, null, 2));
-    }
-
     // Use Immer for structural sharing - only modified parts get new references
     const next = produce(dataRef.current, (draft) => {
       applyPatch(draft, filtered);
@@ -172,10 +167,6 @@ export const useJsonPatchWsStream = <T extends object>(
           // Uses throttled queue to batch rapid consecutive updates
           if ('JsonPatch' in msg) {
             const patches: Operation[] = msg.JsonPatch;
-            // Debug: Log task patches that include dag_position
-            if (patches.some(p => p.path.includes('dag_position') || p.path.startsWith('/tasks/'))) {
-              console.log('[WS] Received task/dag patch:', JSON.stringify(patches, null, 2));
-            }
             if (patches.length && dataRef.current) {
               queuePatches(patches);
             }

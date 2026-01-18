@@ -151,8 +151,13 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
 
   // Track previous dependency count to detect changes
   const prevDepsCountRef = useRef(dependencies.length);
+  // Track previous node/edge counts to skip unnecessary layout recalculations
+  const prevNodesCountRef = useRef(0);
+  const prevEdgesCountRef = useRef(0);
   // Track if initial layout has been applied
   const initialLayoutAppliedRef = useRef(false);
+  // Debounce timer for auto-layout
+  const layoutDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Orchestration state and controls - disabled until backend API is ready
   // const {
@@ -208,12 +213,6 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
         inPool.push(task);
       }
     });
-
-    // Debug: Log when classification changes
-    console.log(`[DAGView] Tasks classified: ${inDag.length} in DAG, ${inPool.length} in pool`);
-    if (inDag.length > 0) {
-      console.log('[DAGView] DAG tasks:', inDag.map(t => ({ id: t.id.slice(0, 8), title: t.title, x: t.dag_position_x, y: t.dag_position_y })));
-    }
 
     return { dagTasks: inDag, poolTasks: inPool };
   }, [tasks]);
@@ -364,6 +363,8 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
   // Auto-layout when dependencies change (if enabled)
   useEffect(() => {
     const prevDepsCount = prevDepsCountRef.current;
+    const prevNodesCount = prevNodesCountRef.current;
+    const prevEdgesCount = prevEdgesCountRef.current;
 
     // Initial layout: apply once when we first have both nodes and edges
     if (!initialLayoutAppliedRef.current && autoLayoutEnabled && nodesCount > 0 && edgesCount > 0) {
@@ -374,17 +375,42 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
         applyAutoLayout(freshNodes, freshEdges);
       }, 100);
       prevDepsCountRef.current = depsCount;
+      prevNodesCountRef.current = nodesCount;
+      prevEdgesCountRef.current = edgesCount;
       return () => clearTimeout(timer);
     }
 
-    // Subsequent layouts: only when dependencies actually changed
-    if (initialLayoutAppliedRef.current && autoLayoutEnabled && depsCount !== prevDepsCount) {
-      const freshNodes = layoutNodes(dagTasks, onViewDetails, getTaskReadiness);
-      const freshEdges = createEdges(dependencies, handleEdgeDelete, genresById);
-      applyAutoLayout(freshNodes, freshEdges);
+    // Skip layout if nothing has changed
+    const hasChanges =
+      depsCount !== prevDepsCount ||
+      nodesCount !== prevNodesCount ||
+      edgesCount !== prevEdgesCount;
+
+    // Subsequent layouts: only when dependencies/nodes/edges actually changed (debounced)
+    if (initialLayoutAppliedRef.current && autoLayoutEnabled && hasChanges) {
+      // Clear any existing debounce timer
+      if (layoutDebounceTimerRef.current) {
+        clearTimeout(layoutDebounceTimerRef.current);
+      }
+
+      // Debounce layout recalculation (300ms)
+      layoutDebounceTimerRef.current = setTimeout(() => {
+        const freshNodes = layoutNodes(dagTasks, onViewDetails, getTaskReadiness);
+        const freshEdges = createEdges(dependencies, handleEdgeDelete, genresById);
+        applyAutoLayout(freshNodes, freshEdges);
+        layoutDebounceTimerRef.current = null;
+      }, 300);
     }
 
     prevDepsCountRef.current = depsCount;
+    prevNodesCountRef.current = nodesCount;
+    prevEdgesCountRef.current = edgesCount;
+
+    return () => {
+      if (layoutDebounceTimerRef.current) {
+        clearTimeout(layoutDebounceTimerRef.current);
+      }
+    };
   }, [depsCount, nodesCount, edgesCount, autoLayoutEnabled, dagTasks, onViewDetails, getTaskReadiness, dependencies, handleEdgeDelete, genresById, applyAutoLayout]);
 
   // Handle new connections (creating dependencies)

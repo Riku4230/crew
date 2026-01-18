@@ -107,10 +107,22 @@ impl NotificationService {
 
     /// Send macOS notification using osascript
     async fn send_macos_notification(title: &str, message: &str) {
+        // Escape special characters for AppleScript string literals:
+        // 1. Backslashes must be escaped first (\ → \\)
+        // 2. Double quotes must be escaped (" → \")
+        // 3. Newlines and carriage returns should be removed
+        let escape_applescript = |s: &str| -> String {
+            s.replace('\\', "\\\\")
+                .replace('"', "\\\"")
+                .replace('\n', " ")
+                .replace('\r', "")
+        };
+
+        let escaped_message = escape_applescript(message);
+        let escaped_title = escape_applescript(title);
+
         let script = format!(
-            r#"display notification "{message}" with title "{title}" sound name "Glass""#,
-            message = message.replace('"', r#"\""#),
-            title = title.replace('"', r#"\""#)
+            r#"display notification "{escaped_message}" with title "{escaped_title}" sound name "Glass""#
         );
 
         let _ = tokio::process::Command::new("osascript")
