@@ -71,7 +71,7 @@ function TaskTableViewComponent({
   // Flatten all tasks from columns into a single list
   const allTasksUnsorted = useMemo(() => {
     const tasks: Array<{
-      item: KanbanColumnItem;
+      item: Extract<KanbanColumnItem, { type: 'task' }>;
       sharedTask?: SharedTaskRecord;
     }> = [];
 
@@ -91,6 +91,15 @@ function TaskTableViewComponent({
 
     return tasks;
   }, [columns]);
+
+  // Get task IDs for bulk property fetch (from unsorted tasks)
+  const taskIds = useMemo(
+    () => allTasksUnsorted.map(({ item }) => item.task.id),
+    [allTasksUnsorted]
+  );
+
+  // Fetch properties for all tasks
+  const { data: taskProperties } = useTaskProperties(taskIds);
 
   // Sort tasks based on sort state
   const allTasks = useMemo(() => {
@@ -173,6 +182,9 @@ function TaskTableViewComponent({
           comparison = aDate - bDate;
           break;
         }
+        default:
+          // null case - should not reach here due to early return
+          break;
       }
 
       return sortState.direction === 'asc' ? comparison : -comparison;
@@ -180,15 +192,6 @@ function TaskTableViewComponent({
 
     return sorted;
   }, [allTasksUnsorted, sortState, taskProperties]);
-
-  // Get task IDs for bulk property fetch (from unsorted tasks)
-  const taskIds = useMemo(
-    () => allTasksUnsorted.map(({ item }) => item.task.id),
-    [allTasksUnsorted]
-  );
-
-  // Fetch properties for all tasks
-  const { data: taskProperties } = useTaskProperties(taskIds);
 
   const isEmpty = allTasks.length === 0;
 
