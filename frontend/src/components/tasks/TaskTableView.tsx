@@ -1,6 +1,5 @@
-import { memo, useMemo, useState, useCallback, forwardRef } from 'react';
+import { memo, useMemo, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { TableVirtuoso, type TableComponents } from 'react-virtuoso';
 import {
   Table,
   TableHead,
@@ -28,43 +27,6 @@ const TASK_STATUSES: TaskStatus[] = [
 
 type SortColumn = 'title' | 'status' | 'priority' | 'genre' | 'assignee' | 'progress' | 'created_at';
 type SortDirection = 'asc' | 'desc' | null;
-
-// TableVirtuoso requires custom table components with forwardRef
-// Define typed context for passing data to row renderer
-type VirtuosoTableContext = {
-  onViewTaskDetails: (task: TaskWithAttemptStatus) => void;
-  selectedTaskId?: string;
-  taskProperties?: Record<string, import('@/hooks/useTaskProperties').ParsedTaskProperties[string]>;
-};
-
-const VirtuosoTableComponents: TableComponents<
-  { item: Extract<KanbanColumnItem, { type: 'task' }>; sharedTask?: SharedTaskRecord },
-  VirtuosoTableContext
-> = {
-  Table: (props) => (
-    <Table {...props} className="min-w-[700px]" />
-  ),
-  TableHead: forwardRef<HTMLTableSectionElement>((props, ref) => (
-    <TableHead {...props} ref={ref} />
-  )),
-  TableBody: forwardRef<HTMLTableSectionElement>((props, ref) => (
-    <TableBody {...props} ref={ref} />
-  )),
-  TableRow: ({ item, context }) => {
-    if (!item || item.item.type !== 'task') return null;
-    const taskProps = context?.taskProperties?.[item.item.task.id];
-    return (
-      <TaskTableRow
-        key={item.item.task.id}
-        task={item.item.task}
-        sharedTask={item.sharedTask}
-        taskProps={taskProps}
-        onViewDetails={context?.onViewTaskDetails || (() => {})}
-        isSelected={context?.selectedTaskId === item.item.task.id}
-      />
-    );
-  },
-};
 
 interface SortState {
   column: SortColumn | null;
@@ -121,9 +83,31 @@ function TaskTableViewComponent({
             item,
             sharedTask: item.sharedTask,
           });
+        } else if (item.type === 'shared') {
+          // Convert shared-only task to a compatible format
+          const sharedTask = item.task;
+          const virtualTask: TaskWithAttemptStatus = {
+            id: sharedTask.id,
+            title: sharedTask.title,
+            description: sharedTask.description,
+            status: sharedTask.status,
+            parent_workspace_id: null,
+            shared_task_id: sharedTask.id,
+            project_id: sharedTask.project_id,
+            position: null,
+            dag_position_x: null,
+            dag_position_y: null,
+            created_at: sharedTask.created_at,
+            updated_at: sharedTask.updated_at,
+            has_in_progress_attempt: false,
+            last_attempt_failed: false,
+            executor: '',
+          };
+          tasks.push({
+            item: { type: 'task', task: virtualTask, sharedTask },
+            sharedTask,
+          });
         }
-        // Skip shared-only tasks in table view for now
-        // They can be added later if needed
       });
     });
 
@@ -231,72 +215,6 @@ function TaskTableViewComponent({
     return sorted;
   }, [allTasksUnsorted, sortState, taskProperties]);
 
-  // Context for passing data to virtuoso row renderer
-  const virtuosoContext = useMemo<VirtuosoTableContext>(() => ({
-    onViewTaskDetails,
-    selectedTaskId,
-    taskProperties,
-  }), [onViewTaskDetails, selectedTaskId, taskProperties]);
-
-  // Fixed header content for TableVirtuoso
-  const fixedHeaderContent = useCallback(() => (
-    <TableRow className="border-b border-border/30 bg-muted/30">
-      <SortableHeader
-        column="title"
-        currentSort={sortState}
-        onSort={handleSort}
-        className="min-w-[200px]"
-      >
-        {t('table.title', { defaultValue: 'Title' })}
-      </SortableHeader>
-      <SortableHeader
-        column="status"
-        currentSort={sortState}
-        onSort={handleSort}
-        className="w-[120px]"
-      >
-        {t('table.status', { defaultValue: 'Status' })}
-      </SortableHeader>
-      <SortableHeader
-        column="priority"
-        currentSort={sortState}
-        onSort={handleSort}
-        className="w-[100px] hidden sm:table-cell"
-      >
-        {t('table.priority', { defaultValue: 'Priority' })}
-      </SortableHeader>
-      <SortableHeader
-        column="genre"
-        currentSort={sortState}
-        onSort={handleSort}
-        className="w-[100px] hidden lg:table-cell"
-      >
-        {t('table.genre', { defaultValue: 'Genre' })}
-      </SortableHeader>
-      <SortableHeader
-        column="assignee"
-        currentSort={sortState}
-        onSort={handleSort}
-        className="w-[100px] hidden md:table-cell"
-      >
-        {t('table.assignee', { defaultValue: 'Assignee' })}
-      </SortableHeader>
-      <SortableHeader
-        column="progress"
-        currentSort={sortState}
-        onSort={handleSort}
-        className="w-[80px]"
-      >
-        {t('table.progress', { defaultValue: 'Progress' })}
-      </SortableHeader>
-      <TableHeaderCell className="py-4 px-5 font-medium w-[60px]">
-        <span className="sr-only">
-          {t('table.actions', { defaultValue: 'Actions' })}
-        </span>
-      </TableHeaderCell>
-    </TableRow>
-  ), [handleSort, sortState, t]);
-
   const isEmpty = allTasks.length === 0;
 
   if (isEmpty) {
@@ -318,25 +236,94 @@ function TaskTableViewComponent({
   }
 
   return (
-    <div className="w-full h-full overflow-hidden px-4 sm:px-6 py-6 flex flex-col">
-      <div className="max-w-7xl mx-auto w-full flex-1 flex flex-col min-h-0">
+    <div className="w-full h-full overflow-auto px-4 sm:px-6 py-6">
+      <div className="max-w-7xl mx-auto w-full">
         {/* Header with Add Task button */}
         {onCreateTask && (
-          <div className="flex justify-end mb-4 shrink-0">
+          <div className="flex justify-end mb-4">
             <Button onClick={onCreateTask} size="sm">
               <Plus className="h-4 w-4 mr-1" />
               {t('dag.addTask', 'タスク追加')}
             </Button>
           </div>
         )}
-        <div className="rounded-2xl overflow-hidden bg-white dark:bg-slate-800/60 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.08)] dark:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4)] flex-1 min-h-0">
-          <TableVirtuoso
-            data={allTasks}
-            context={virtuosoContext}
-            components={VirtuosoTableComponents}
-            fixedHeaderContent={fixedHeaderContent}
-            style={{ height: '100%' }}
-          />
+        <div className="rounded-2xl overflow-hidden bg-white dark:bg-slate-800/60 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.08)] dark:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4)]">
+          <div className="overflow-x-auto">
+            <Table className="min-w-[700px]">
+              <TableHead>
+                <TableRow className="border-b border-border/30 bg-muted/30">
+                  <SortableHeader
+                    column="title"
+                    currentSort={sortState}
+                    onSort={handleSort}
+                    className="min-w-[200px]"
+                  >
+                    {t('table.title', { defaultValue: 'Title' })}
+                  </SortableHeader>
+                  <SortableHeader
+                    column="status"
+                    currentSort={sortState}
+                    onSort={handleSort}
+                    className="w-[120px]"
+                  >
+                    {t('table.status', { defaultValue: 'Status' })}
+                  </SortableHeader>
+                  <SortableHeader
+                    column="priority"
+                    currentSort={sortState}
+                    onSort={handleSort}
+                    className="w-[100px] hidden sm:table-cell"
+                  >
+                    {t('table.priority', { defaultValue: 'Priority' })}
+                  </SortableHeader>
+                  <SortableHeader
+                    column="genre"
+                    currentSort={sortState}
+                    onSort={handleSort}
+                    className="w-[100px] hidden lg:table-cell"
+                  >
+                    {t('table.genre', { defaultValue: 'Genre' })}
+                  </SortableHeader>
+                  <SortableHeader
+                    column="assignee"
+                    currentSort={sortState}
+                    onSort={handleSort}
+                    className="w-[100px] hidden md:table-cell"
+                  >
+                    {t('table.assignee', { defaultValue: 'Assignee' })}
+                  </SortableHeader>
+                  <SortableHeader
+                    column="progress"
+                    currentSort={sortState}
+                    onSort={handleSort}
+                    className="w-[80px]"
+                  >
+                    {t('table.progress', { defaultValue: 'Progress' })}
+                  </SortableHeader>
+                  <TableHeaderCell className="py-4 px-5 font-medium w-[60px]">
+                    <span className="sr-only">
+                      {t('table.actions', { defaultValue: 'Actions' })}
+                    </span>
+                  </TableHeaderCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {allTasks.map(({ item, sharedTask }) => {
+                  const taskProps = taskProperties?.[item.task.id];
+                  return (
+                    <TaskTableRow
+                      key={item.task.id}
+                      task={item.task}
+                      sharedTask={sharedTask}
+                      taskProps={taskProps}
+                      onViewDetails={onViewTaskDetails}
+                      isSelected={selectedTaskId === item.task.id}
+                    />
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       </div>
     </div>
