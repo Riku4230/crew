@@ -1,108 +1,166 @@
 <p align="center">
   <h1 align="center">Crew</h1>
-  <p align="center"><strong>AI-powered task management for everyone</strong></p>
-  <p align="center">Engineers, PMs, and Business teams - all working together with AI agents</p>
+  <p align="center"><strong>みんなのためのAI駆動タスク管理</strong></p>
+  <p align="center">エンジニア、PM、ビジネスチーム - AIエージェントと共に働く</p>
 </p>
 
-## Overview
+## 概要
 
-Crew is a modern task management tool that brings AI coding agents to everyone on your team. Whether you're an engineer, PM, or business stakeholder, Crew helps you:
+Crewは、チーム全員がAIコーディングエージェントを活用できるモダンなタスク管理ツールです。エンジニア、PM、ビジネス担当者など、誰でも以下のことができます:
 
-- **Orchestrate AI agents** - Run multiple coding agents in parallel or sequence
-- **Track progress** - Visual kanban boards to monitor task status
-- **Review work** - Quickly review changes and start dev servers
-- **Collaborate** - Enable non-technical team members to leverage AI agents
-- **Configure easily** - Centralized MCP config management
+- **AIエージェントのオーケストレーション** - 複数のコーディングエージェントを並列または順次実行
+- **進捗トラッキング** - カンバンボードでタスク状況を可視化
+- **レビュー** - 変更内容を素早く確認し、開発サーバーを起動
+- **コラボレーション** - 非技術者もAIエージェントを活用可能に
+- **簡単な設定** - MCP設定を一元管理
 
-## Installation
+## インストール
 
-### Prerequisites
+### 必要なもの
 
-- [Rust](https://rustup.rs/) (latest stable)
-- [Node.js](https://nodejs.org/) (>=18)
-- [pnpm](https://pnpm.io/) (>=8)
+- [Rust](https://rustup.rs/)（最新の安定版）
+- [Node.js](https://nodejs.org/)（>=18）
+- [pnpm](https://pnpm.io/)（>=8）
 
-### Setup
+### セットアップ
 
 ```bash
-# Clone the repository
+# リポジトリをクローン
 git clone https://github.com/anthropics/crew.git
 cd crew
 
-# Install dependencies
+# 依存関係をインストール
 pnpm i
 
-# Run development server
+# 開発サーバーを起動
 pnpm run dev
 ```
 
-Crew will launch in your browser automatically at `http://localhost:3000`.
+Crewは自動的にブラウザで `http://localhost:3000` を開きます。
 
-## Features
+## 機能
 
-### Project Management
-- Add git repositories as projects
-- Automatic git integration and validation
-- Project-wide file search
+### プロジェクト管理
+- Gitリポジトリをプロジェクトとして追加
+- 自動Git連携とバリデーション
+- プロジェクト全体のファイル検索
 
-### Task Management
-- Kanban-style task boards
-- Task status tracking (Todo, In Progress, Done)
-- Rich task descriptions
+### タスク管理
+- カンバン形式のタスクボード
+- タスクステータス管理（Todo、In Progress、Done）
+- リッチなタスク説明
 
-### AI Agent Integration
-- Support for Claude Code, Gemini CLI, Codex, Amp, and more
-- Create tasks and immediately start agent execution
-- Follow-up task execution for iterative development
+### AIエージェント連携
+- Claude Code、Gemini CLI、Codex、Ampなど複数エージェント対応
+- タスク作成と同時にエージェント実行を開始
+- フォローアップタスクで反復的な開発
 
-### Development Workflow
-- Isolated git worktrees for each task
-- View diffs of changes made by agents
-- Merge successful changes back to main branch
+### 開発ワークフロー
+- タスクごとに独立したgit worktree
+- エージェントが行った変更のdiff表示
+- 成功した変更をメインブランチにマージ
 
-### Developer Tools
-- Open tasks in your preferred editor (VS Code, Cursor, Windsurf, etc.)
-- Real-time execution monitoring
-- Sound notifications for task completion
+### 開発者ツール
+- 好みのエディタでタスクを開く（VS Code、Cursor、Windsurfなど）
+- リアルタイム実行モニタリング
+- タスク完了時のサウンド通知
 
-## Architecture
+## 使い方ガイド: CLI vs ダッシュボード
 
-| Layer | Technology |
-|-------|------------|
-| Backend | Rust (Axum) |
-| Frontend | React + TypeScript + Vite + Tailwind |
-| Database | SQLite (SQLx) |
-| Shared Types | ts-rs (auto-generated) |
+CrewはClaude Code CLIとダッシュボードの2つの方法でAIエージェントを操作できます。それぞれの特徴を活かした使い分けを推奨します。
 
-## Development Commands
+### Claude Code CLIで直接実行する場合
+
+**向いているケース:**
+- 単一のタスクに集中して作業したい
+- 対話的にフィードバックを与えながら進めたい
+- 複雑な要件を段階的に詰めていきたい
+- コードの細かい部分を確認しながら進めたい
+
+**例:**
+```bash
+# ターミナルでClaude Codeを起動
+claude
+
+# 対話的に作業を進める
+> この関数をリファクタリングして
+> もう少しエラーハンドリングを追加して
+> テストも書いて
+```
+
+### ダッシュボードで並列実行する場合
+
+**向いているケース:**
+- 複数の独立したタスクを同時に進めたい
+- タスクの進捗を可視化しながら管理したい
+- チームでタスク状況を共有したい
+- 定型的なタスクをまとめて実行したい
+
+**例:**
+1. ダッシュボードでプロジェクトを選択
+2. 複数のタスクを作成（例: 「ログイン機能追加」「API修正」「テスト追加」）
+3. 各タスクを並列で実行開始
+4. 進捗をリアルタイムで確認
+5. 完了したタスクのdiffを確認してマージ
+
+### 組み合わせた使い方
+
+最も効果的なのは両方を組み合わせる方法です:
+
+1. **計画フェーズ**: ダッシュボードでタスクを整理・優先順位付け
+2. **実行フェーズ**:
+   - 独立したタスク → ダッシュボードで並列実行
+   - 複雑なタスク → CLIで対話的に実行
+3. **レビューフェーズ**: ダッシュボードでdiffを確認、マージ判断
+
+### MCPによる連携
+
+Claude CodeはMCP（Model Context Protocol）でダッシュボードと連携できます。CLIから直接タスクを作成・更新することも可能です:
 
 ```bash
-# Install dependencies
+# Claude Code内でMCPツールを使用
+> このバグをタスクとして登録して
+> タスク#5のステータスを完了に更新して
+```
+
+## アーキテクチャ
+
+| レイヤー | 技術 |
+|---------|------|
+| バックエンド | Rust (Axum) |
+| フロントエンド | React + TypeScript + Vite + Tailwind |
+| データベース | SQLite (SQLx) |
+| 共有型定義 | ts-rs（自動生成） |
+
+## 開発コマンド
+
+```bash
+# 依存関係をインストール
 pnpm i
 
-# Run development server (frontend + backend)
+# 開発サーバーを起動（フロントエンド + バックエンド）
 pnpm run dev
 
-# Run QA mode (recommended for testing)
+# QAモードで起動（テスト推奨）
 pnpm run dev:qa
 
-# Type check
+# 型チェック
 pnpm run check
 
 # Lint
 pnpm run lint
 
-# Run backend tests
+# バックエンドテスト
 cargo test --workspace
 
-# Generate TypeScript types from Rust
+# Rust から TypeScript の型を生成
 pnpm run generate-types
 ```
 
-## Contributing
+## コントリビューション
 
-We welcome contributions! Please open an issue or discussion before submitting PRs.
+コントリビューションを歓迎します！PRを送る前に、まずIssueやDiscussionを開いてください。
 
-## License
+## ライセンス
 
 MIT
