@@ -374,10 +374,7 @@ async fn recalculate_dag_layout(
     // レベルごとにタスクをグループ化
     let mut level_groups: HashMap<usize, Vec<Uuid>> = HashMap::new();
     for (task_id, level) in &levels {
-        level_groups
-            .entry(*level)
-            .or_insert_with(Vec::new)
-            .push(*task_id);
+        level_groups.entry(*level).or_default().push(*task_id);
     }
 
     // 各タスクの位置を計算して更新

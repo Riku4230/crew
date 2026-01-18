@@ -200,7 +200,7 @@ mod tests {
     #[test]
     fn test_can_start_task_no_dependencies() {
         let task = create_test_task(Uuid::new_v4(), TaskStatus::Todo);
-        assert!(can_start_task(&task, &[task.clone()], &[]));
+        assert!(can_start_task(&task, std::slice::from_ref(&task), &[]));
     }
 
     #[test]

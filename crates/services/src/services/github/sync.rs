@@ -110,7 +110,7 @@ impl StatusMapping {
 }
 
 /// Result of a sync operation
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncResult {
     pub items_synced: u32,
@@ -118,18 +118,6 @@ pub struct SyncResult {
     pub items_updated: u32,
     pub items_skipped: u32,
     pub errors: Vec<String>,
-}
-
-impl Default for SyncResult {
-    fn default() -> Self {
-        Self {
-            items_synced: 0,
-            items_created: 0,
-            items_updated: 0,
-            items_skipped: 0,
-            errors: Vec::new(),
-        }
-    }
 }
 
 pub struct GitHubSyncService {

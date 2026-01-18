@@ -148,15 +148,14 @@ pub async fn update_genre(
         .ok_or_else(|| ApiError::NotFound(format!("ジャンルが見つかりません: {}", genre_id)))?;
 
     // If name is being changed, check for duplicates
-    if let Some(ref new_name) = payload.name {
-        if new_name != &existing.name {
-            if let Some(_dup) = DependencyGenre::find_by_name(pool, existing.project_id, new_name).await? {
-                return Err(ApiError::Conflict(format!(
-                    "ジャンル「{}」は既に存在します",
-                    new_name
-                )));
-            }
-        }
+    if let Some(ref new_name) = payload.name
+        && new_name != &existing.name
+        && let Some(_dup) = DependencyGenre::find_by_name(pool, existing.project_id, new_name).await?
+    {
+        return Err(ApiError::Conflict(format!(
+            "ジャンル「{}」は既に存在します",
+            new_name
+        )));
     }
 
     let update_data = UpdateDependencyGenre {

@@ -422,20 +422,17 @@ mod tests {
     async fn test_subdirectory_of_home_allowed() {
         let service = FilesystemService::new();
         let home = dirs::home_dir().unwrap();
-        if let Ok(entries) = std::fs::read_dir(&home) {
-            if let Some(entry) = entries
-                .filter_map(|e| e.ok())
-                .find(|e| e.path().is_dir())
-            {
-                let result = service
-                    .list_directory(Some(entry.path().to_string_lossy().to_string()))
-                    .await;
-                assert!(
-                    result.is_ok(),
-                    "Expected subdirectory of home to be allowed, got {:?}",
-                    result
-                );
-            }
+        if let Ok(entries) = std::fs::read_dir(&home)
+            && let Some(entry) = entries.filter_map(|e| e.ok()).find(|e| e.path().is_dir())
+        {
+            let result = service
+                .list_directory(Some(entry.path().to_string_lossy().to_string()))
+                .await;
+            assert!(
+                result.is_ok(),
+                "Expected subdirectory of home to be allowed, got {:?}",
+                result
+            );
         }
     }
 }

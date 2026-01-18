@@ -77,15 +77,15 @@ impl GitHubGraphQL {
         cmd.args(["-f", &format!("query={}", query)]);
 
         // Add variables if present
-        if let Some(vars) = variables {
-            if let serde_json::Value::Object(map) = vars {
-                for (key, value) in map {
-                    let value_str = match &value {
-                        serde_json::Value::String(s) => s.clone(),
-                        _ => value.to_string(),
-                    };
-                    cmd.args(["-F", &format!("{}={}", key, value_str)]);
-                }
+        if let Some(vars) = variables
+            && let serde_json::Value::Object(map) = vars
+        {
+            for (key, value) in map {
+                let value_str = match &value {
+                    serde_json::Value::String(s) => s.clone(),
+                    _ => value.to_string(),
+                };
+                cmd.args(["-F", &format!("{}={}", key, value_str)]);
             }
         }
 
@@ -115,10 +115,10 @@ impl GitHubGraphQL {
             .map_err(|e| GitHubGraphQLError::ParseError(format!("{}: {}", e, stdout)))?;
 
         // Check for GraphQL errors
-        if let Some(errors) = response.errors {
-            if !errors.is_empty() {
-                return Err(GitHubGraphQLError::ApiErrors(errors));
-            }
+        if let Some(errors) = response.errors
+            && !errors.is_empty()
+        {
+            return Err(GitHubGraphQLError::ApiErrors(errors));
         }
 
         response

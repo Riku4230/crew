@@ -648,13 +648,13 @@ impl EventService {
         ]);
         let initial_msg = LogMsg::JsonPatch(serde_json::from_value(initial_patch).unwrap());
 
-        // Clone necessary data for the async filter
+        // Clone necessary data for the async filter (currently unused but kept for consistency)
         let db_pool = self.db.pool.clone();
 
         // Get filtered event stream
         let filtered_stream =
             BroadcastStream::new(self.msg_store.get_receiver()).filter_map(move |msg_result| {
-                let db_pool = db_pool.clone();
+                let _db_pool = db_pool.clone();
                 async move {
                     match msg_result {
                         Ok(LogMsg::JsonPatch(patch)) => {

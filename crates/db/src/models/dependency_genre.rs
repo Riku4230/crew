@@ -235,10 +235,10 @@ impl DependencyGenre {
         }
 
         // Get the project_id from the first genre to return updated list
-        if let Some(first_id) = genre_ids.first() {
-            if let Some(first_genre) = Self::find_by_id(pool, *first_id).await? {
-                return Self::find_by_project_id(pool, first_genre.project_id).await;
-            }
+        if let Some(first_id) = genre_ids.first()
+            && let Some(first_genre) = Self::find_by_id(pool, *first_id).await?
+        {
+            return Self::find_by_project_id(pool, first_genre.project_id).await;
         }
 
         Ok(vec![])

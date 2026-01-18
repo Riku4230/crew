@@ -109,6 +109,7 @@ struct ViewerResponse {
 #[derive(Debug, Deserialize)]
 struct ViewerData {
     login: String,
+    #[allow(dead_code)]
     id: String,
 }
 
