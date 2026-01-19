@@ -5,6 +5,8 @@ import {
   MoreHorizontal,
   Inbox,
   Archive,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import type { TaskWithAttemptStatus } from 'shared/types';
 import { cn } from '@/lib/utils';
@@ -98,8 +100,10 @@ const MIN_WIDTH = 200;
 const MAX_WIDTH = 600;
 
 export interface TaskDagSidebarProps {
-  /** Tasks in the pool (not placed in DAG yet) */
+  /** Tasks in the pool (no dependencies, not done) */
   poolTasks: TaskWithAttemptStatus[];
+  /** Tasks in the archive (no dependencies, done) */
+  archiveTasks: TaskWithAttemptStatus[];
   onViewDetails: (task: TaskWithAttemptStatus) => void;
   /** Whether a DAG node is being dragged over this sidebar */
   isDropTarget?: boolean;
@@ -114,12 +118,16 @@ export interface TaskDagSidebarProps {
 export const TaskDagSidebar = memo(forwardRef<HTMLDivElement, TaskDagSidebarProps>(
   function TaskDagSidebar({
     poolTasks,
+    archiveTasks,
     onViewDetails,
     isDropTarget = false,
     isArchiveDropTarget = false,
     width: controlledWidth,
     onWidthChange,
   }, ref) {
+    // State for archive section expansion
+    const [archiveExpanded, setArchiveExpanded] = useState(false);
+
     // Load initial width from localStorage or use default
     const [internalWidth, setInternalWidth] = useState(() => {
       if (controlledWidth !== undefined) return controlledWidth;
@@ -179,16 +187,18 @@ export const TaskDagSidebar = memo(forwardRef<HTMLDivElement, TaskDagSidebarProp
       document.addEventListener('mouseup', handleResizeEnd);
     }, [width, handleResizeMove, handleResizeEnd]);
 
-    // Sort: Todo first, then Done
-    const sortedTasks = [...poolTasks].sort((a, b) => {
-      if (a.status === 'done' && b.status !== 'done') return 1;
-      if (a.status !== 'done' && b.status === 'done') return -1;
-      // Within same status, sort by created_at (newest first)
+    // Sort pool tasks by created_at (newest first)
+    const sortedPoolTasks = [...poolTasks].sort((a, b) => {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
-    const todoCount = poolTasks.filter(t => t.status !== 'done').length;
-    const doneCount = poolTasks.filter(t => t.status === 'done').length;
+    // Sort archive tasks by created_at (newest first)
+    const sortedArchiveTasks = [...archiveTasks].sort((a, b) => {
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+
+    const poolCount = poolTasks.length;
+    const archiveCount = archiveTasks.length;
 
     return (
       <div
@@ -219,18 +229,14 @@ export const TaskDagSidebar = memo(forwardRef<HTMLDivElement, TaskDagSidebarProp
         <div className="flex gap-4 mt-3 text-xs">
           <span className="flex items-center gap-1.5">
             <Circle className="h-3.5 w-3.5 text-slate-400" />
-            <span className="text-muted-foreground font-medium">{todoCount} 未着手</span>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-            <span className="text-muted-foreground font-medium">{doneCount} 完了</span>
+            <span className="text-muted-foreground font-medium">{poolCount} タスク</span>
           </span>
         </div>
       </div>
 
       {/* Scrollable task list */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
-        {sortedTasks.map((task) => (
+        {sortedPoolTasks.map((task) => (
           <TaskCard
             key={task.id}
             task={task}
@@ -251,35 +257,58 @@ export const TaskDagSidebar = memo(forwardRef<HTMLDivElement, TaskDagSidebarProp
         )}
       </div>
 
-      {/* Archive drop zone */}
+      {/* Archive Section */}
       <div
         data-archive-zone
         className={cn(
-          "border-t border-border transition-colors duration-200 flex flex-col",
-          isArchiveDropTarget
-            ? "bg-emerald-100/80 dark:bg-emerald-900/40 border-emerald-400"
-            : "bg-card/50",
-          doneCount === 0 && !isArchiveDropTarget ? "flex-1 justify-center items-center min-h-0" : ""
+          "border-t border-border transition-colors duration-200",
+          isArchiveDropTarget && "bg-emerald-100/80 dark:bg-emerald-900/40 border-emerald-400"
         )}
       >
-        {isArchiveDropTarget ? (
+        {/* Archive drop overlay */}
+        {isArchiveDropTarget && (
           <div className="flex flex-col items-center justify-center p-4 py-2">
             <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center mb-2">
               <Archive className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
             </div>
             <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">完了にする</p>
           </div>
-        ) : doneCount === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full px-4">
-            <div className="rounded-2xl bg-white dark:bg-slate-800/60 shadow-sm p-8 text-center">
-              <p className="text-sm text-foreground">完了したタスクはありません</p>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center justify-center gap-2 p-4 py-2 text-muted-foreground">
-            <Archive className="w-4 h-4" />
-            <p className="text-xs">ここにドロップで完了</p>
-          </div>
+        )}
+
+        {/* Collapsible archive header */}
+        {!isArchiveDropTarget && (
+          <>
+            <button
+              onClick={() => setArchiveExpanded(!archiveExpanded)}
+              className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Archive className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">アーカイブ</span>
+                <span className="text-xs text-muted-foreground">({archiveCount})</span>
+              </div>
+              {archiveExpanded ? (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              )}
+            </button>
+
+            {/* Archive task list */}
+            {archiveExpanded && (
+              <div className="p-3 pt-0 space-y-2 max-h-48 overflow-y-auto">
+                {sortedArchiveTasks.length > 0 ? (
+                  sortedArchiveTasks.map((task) => (
+                    <TaskCard key={task.id} task={task} onViewDetails={onViewDetails} />
+                  ))
+                ) : (
+                  <p className="text-xs text-muted-foreground text-center py-2">
+                    アーカイブされたタスクはありません
+                  </p>
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
 

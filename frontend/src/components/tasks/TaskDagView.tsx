@@ -200,22 +200,39 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
   const completedTasksCount = tasks.filter(t => t.status === 'done').length;
   const progressPercent = totalTasks > 0 ? (completedTasksCount / totalTasks) * 100 : 0;
 
-  // Classify tasks based on dag_position: tasks with position are in DAG, others in pool
-  const { dagTasks, poolTasks } = useMemo(() => {
+  // Classify tasks based on dependencies:
+  // - DAG: Tasks with dependencies (incoming or outgoing)
+  // - Pool: Tasks without dependencies & status is not done
+  // - Archive: Tasks without dependencies & status is done
+  const { dagTasks, poolTasks, archiveTasks } = useMemo(() => {
     const inDag: TaskWithAttemptStatus[] = [];
     const inPool: TaskWithAttemptStatus[] = [];
+    const inArchive: TaskWithAttemptStatus[] = [];
+
+    // Collect task IDs that appear in dependencies
+    const tasksWithDependencies = new Set<string>();
+    dependencies.forEach((dep) => {
+      tasksWithDependencies.add(dep.task_id);
+      tasksWithDependencies.add(dep.depends_on_task_id);
+    });
 
     tasks.forEach((task) => {
-      // Task is in DAG if it has a position set
-      if (task.dag_position_x !== null && task.dag_position_y !== null) {
+      const hasDependency = tasksWithDependencies.has(task.id);
+
+      if (hasDependency) {
+        // Has dependencies -> DAG view
         inDag.push(task);
+      } else if (task.status === 'done') {
+        // No dependencies & completed -> Archive
+        inArchive.push(task);
       } else {
+        // No dependencies & not completed -> Task pool
         inPool.push(task);
       }
     });
 
-    return { dagTasks: inDag, poolTasks: inPool };
-  }, [tasks]);
+    return { dagTasks: inDag, poolTasks: inPool, archiveTasks: inArchive };
+  }, [tasks, dependencies]);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [edgeToDelete, setEdgeToDelete] = useState<string | null>(null);
@@ -624,10 +641,11 @@ const TaskDAGViewInner = memo(function TaskDAGViewInner({
   return (
     <>
       <div className="flex w-full h-full min-h-[500px]">
-        {/* Sidebar with isolated tasks */}
+        {/* Sidebar with pool and archive tasks */}
         <TaskDagSidebar
           ref={sidebarRef}
           poolTasks={poolTasks}
+          archiveTasks={archiveTasks}
           onViewDetails={onViewDetails}
           isDropTarget={isDraggingOverSidebar}
           isArchiveDropTarget={isDraggingOverArchive}

@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProject } from '@/contexts/ProjectContext';
 import { useTaskAttemptsWithSessions } from '@/hooks/useTaskAttempts';
@@ -5,12 +6,14 @@ import { useTaskAttemptWithSession } from '@/hooks/useTaskAttempt';
 import { useSingleTaskProperties } from '@/hooks/useTaskProperties';
 import { useNavigateWithSearch } from '@/hooks';
 import { useUserSystem } from '@/components/ConfigProvider';
+import { useTaskDependencies } from '@/hooks/useTaskDependencies';
+import { useTaskMutations } from '@/hooks/useTaskMutations';
 import { paths } from '@/lib/paths';
 import type { TaskWithAttemptStatus } from 'shared/types';
 import type { WorkspaceWithSession } from '@/types/attempt';
 import { NewCardContent } from '../ui/new-card';
 import { Button } from '../ui/button';
-import { PlusIcon, ExternalLink, ChevronDown, ChevronRight, Play } from 'lucide-react';
+import { PlusIcon, ExternalLink, ChevronDown, ChevronRight, Play, Archive } from 'lucide-react';
 import { CreateAttemptDialog } from '@/components/dialogs/tasks/CreateAttemptDialog';
 import WYSIWYGEditor from '@/components/ui/wysiwyg';
 import { DataTable, type ColumnDef } from '@/components/ui/table';
@@ -36,6 +39,36 @@ const TaskPanel = ({ task }: TaskPanelProps) => {
 
   // Fetch task properties (GitHub fields)
   const { data: taskProps } = useSingleTaskProperties(task?.id);
+
+  // Get dependencies for checking if task has any
+  const { dependencies } = useTaskDependencies(projectId);
+  const { updateTask } = useTaskMutations(projectId);
+
+  // Check if the current task has dependencies
+  const taskHasDependencies = useMemo(() => {
+    if (!task || !dependencies || dependencies.length === 0) return false;
+    return dependencies.some(
+      (dep) => dep.task_id === task.id || dep.depends_on_task_id === task.id
+    );
+  }, [task, dependencies]);
+
+  // Handle archive action
+  const handleArchive = () => {
+    if (!task) return;
+    updateTask.mutate({
+      taskId: task.id,
+      data: {
+        title: null,
+        description: null,
+        status: 'done',
+        parent_workspace_id: null,
+        image_ids: null,
+        dag_position_x: null,
+        dag_position_y: null,
+        clear_dag_position: true,
+      },
+    });
+  };
 
   const { data: parentAttempt, isLoading: isParentLoading } =
     useTaskAttemptWithSession(task?.parent_workspace_id || undefined);
@@ -208,18 +241,36 @@ const TaskPanel = ({ task }: TaskPanelProps) => {
             {/* Title */}
             <WYSIWYGEditor value={titleContent} disabled />
 
-            {/* GitHub Link */}
-            {githubIssueUrl && (
-              <a
-                href={githubIssueUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
-              >
-                <ExternalLink size={14} />
-                <span>GitHub Issue</span>
-              </a>
-            )}
+            {/* Actions Row */}
+            <div className="flex items-center gap-2">
+              {/* GitHub Link */}
+              {githubIssueUrl && (
+                <a
+                  href={githubIssueUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
+                >
+                  <ExternalLink size={14} />
+                  <span>GitHub Issue</span>
+                </a>
+              )}
+
+              {/* Archive Button */}
+              {task.status !== 'done' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleArchive}
+                  disabled={taskHasDependencies || updateTask.isPending}
+                  title={taskHasDependencies ? '依存関係があるタスクはアーカイブできません' : 'タスクをアーカイブ（完了）にする'}
+                  className="gap-1.5"
+                >
+                  <Archive size={14} />
+                  アーカイブ
+                </Button>
+              )}
+            </div>
 
             {/* Notion-style Properties Section */}
             {propertyItems.length > 0 && (
