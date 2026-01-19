@@ -3,19 +3,27 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
-// Replaced during npm pack by workflow
-const R2_BASE_URL = "__R2_PUBLIC_URL__";
+// GitHub repository info - replaced during npm pack by workflow
+const GITHUB_OWNER = "__GITHUB_OWNER__";
+const GITHUB_REPO = "__GITHUB_REPO__";
 const BINARY_TAG = "__BINARY_TAG__"; // e.g., v0.0.135-20251215122030
 const CACHE_DIR = path.join(require("os").homedir(), ".crew", "bin");
 
-// Local development mode: use binaries from npx-cli/dist/ instead of R2
+// Local development mode: use binaries from npx-cli/dist/ instead of GitHub
 // Only activate if dist/ exists (i.e., running from source after local-build.sh)
 const LOCAL_DIST_DIR = path.join(__dirname, "..", "dist");
 const LOCAL_DEV_MODE = fs.existsSync(LOCAL_DIST_DIR) || process.env.CREW_LOCAL === "1";
 
-async function fetchJson(url) {
+function fetchJson(url) {
   return new Promise((resolve, reject) => {
-    https.get(url, (res) => {
+    const options = {
+      headers: {
+        "User-Agent": "crew-cli",
+        "Accept": "application/json"
+      }
+    };
+
+    https.get(url, options, (res) => {
       if (res.statusCode === 301 || res.statusCode === 302) {
         return fetchJson(res.headers.location).then(resolve).catch(reject);
       }
@@ -35,7 +43,7 @@ async function fetchJson(url) {
   });
 }
 
-async function downloadFile(url, destPath, expectedSha256, onProgress) {
+async function downloadFile(url, destPath, onProgress) {
   const tempPath = destPath + ".tmp";
   return new Promise((resolve, reject) => {
     const file = fs.createWriteStream(tempPath);
@@ -47,11 +55,18 @@ async function downloadFile(url, destPath, expectedSha256, onProgress) {
       } catch {}
     };
 
-    https.get(url, (res) => {
+    const options = {
+      headers: {
+        "User-Agent": "crew-cli",
+        "Accept": "application/octet-stream"
+      }
+    };
+
+    https.get(url, options, (res) => {
       if (res.statusCode === 301 || res.statusCode === 302) {
         file.close();
         cleanup();
-        return downloadFile(res.headers.location, destPath, expectedSha256, onProgress)
+        return downloadFile(res.headers.location, destPath, onProgress)
           .then(resolve)
           .catch(reject);
       }
@@ -74,18 +89,12 @@ async function downloadFile(url, destPath, expectedSha256, onProgress) {
 
       file.on("finish", () => {
         file.close();
-        const actualSha256 = hash.digest("hex");
-        if (expectedSha256 && actualSha256 !== expectedSha256) {
+        try {
+          fs.renameSync(tempPath, destPath);
+          resolve(destPath);
+        } catch (err) {
           cleanup();
-          reject(new Error(`Checksum mismatch: expected ${expectedSha256}, got ${actualSha256}`));
-        } else {
-          try {
-            fs.renameSync(tempPath, destPath);
-            resolve(destPath);
-          } catch (err) {
-            cleanup();
-            reject(err);
-          }
+          reject(err);
         }
       });
     }).on("error", (err) => {
@@ -116,22 +125,29 @@ async function ensureBinary(platform, binaryName, onProgress) {
 
   fs.mkdirSync(cacheDir, { recursive: true });
 
-  const manifest = await fetchJson(`${R2_BASE_URL}/binaries/${BINARY_TAG}/manifest.json`);
-  const binaryInfo = manifest.platforms?.[platform]?.[binaryName];
-
-  if (!binaryInfo) {
-    throw new Error(`Binary ${binaryName} not available for ${platform}`);
-  }
-
-  const url = `${R2_BASE_URL}/binaries/${BINARY_TAG}/${platform}/${binaryName}.zip`;
-  await downloadFile(url, zipPath, binaryInfo.sha256, onProgress);
+  // Download from GitHub Releases
+  const url = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/${BINARY_TAG}/${platform}-${binaryName}.zip`;
+  await downloadFile(url, zipPath, onProgress);
 
   return zipPath;
 }
 
 async function getLatestVersion() {
-  const manifest = await fetchJson(`${R2_BASE_URL}/binaries/manifest.json`);
-  return manifest.latest;
+  // Check if we're in local dev mode or placeholders aren't replaced
+  if (LOCAL_DEV_MODE || GITHUB_OWNER.startsWith("__")) {
+    return null;
+  }
+
+  try {
+    const release = await fetchJson(
+      `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`
+    );
+    // Extract version from tag (e.g., "v0.0.1" -> "0.0.1")
+    const tag = release.tag_name;
+    return tag.startsWith("v") ? tag.slice(1).split("-")[0] : tag.split("-")[0];
+  } catch {
+    return null;
+  }
 }
 
-module.exports = { R2_BASE_URL, BINARY_TAG, CACHE_DIR, LOCAL_DEV_MODE, LOCAL_DIST_DIR, ensureBinary, getLatestVersion };
+module.exports = { GITHUB_OWNER, GITHUB_REPO, BINARY_TAG, CACHE_DIR, LOCAL_DEV_MODE, LOCAL_DIST_DIR, ensureBinary, getLatestVersion };
